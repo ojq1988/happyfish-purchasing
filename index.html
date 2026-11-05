@@ -106,21 +106,27 @@ let toastT;
 function toast(msg,err){let t=document.querySelector('.toast');if(!t){t=document.createElement('div');t.className='toast';t.setAttribute('role','status');document.body.appendChild(t)}t.className='toast'+(err?' err':'');t.textContent=msg;clearTimeout(toastT);toastT=setTimeout(()=>t.remove(),3500)}
 
 async function call(body){
-  const res = await fetch(API,{method:'POST',body:JSON.stringify(Object.assign({initData:tg?tg.initData:''},body))});
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  return res.json();
+  const ctl = new AbortController(); const timer = setTimeout(()=>ctl.abort(), 45000);
+  let res;
+  try{ res = await fetch(API,{method:'POST',body:JSON.stringify(Object.assign({initData:tg?tg.initData:''},body)),signal:ctl.signal}); }
+  catch(e){ throw new Error(e.name==='AbortError'?'Code T: the server took too long to answer.':'Code N: could not connect to the Google script.'); }
+  finally{ clearTimeout(timer); }
+  if(!res.ok) throw new Error('Code H'+res.status+': the Google script returned an error.');
+  const txt = await res.text();
+  try{ return JSON.parse(txt); }
+  catch(e){ throw new Error(/did not return anything|completed but/i.test(txt) ? 'Code V: the Google script is running an old version. Update the deployment to a New version.' : /sign in|accounts\.google/i.test(txt) ? 'Code A: the Google script needs access set to "Anyone".' : 'Code J: the Google script sent back something unexpected.'); }
 }
 async function run(body, okMsg){
   if(S.busy) return; S.busy=true; render();
   try{
     const d = await call(body);
     if(d.error==='notelegram'){S.data={notelegram:true};return}
-    if(d.error && !d.me){toast(d.error,true);haptic('error');return}
+    if(d.error && !d.me){if(!S.data)S.data={failed:d.error};toast(d.error,true);haptic('error');return}
     S.data = d;
     if(d.error){toast(d.error,true);haptic('error')}
     else if(d.done||okMsg){toast(d.done||okMsg);haptic('success')}
     return d;
-  }catch(e){toast("Couldn't reach the server. Check your internet and try again.",true);haptic('error')}
+  }catch(e){if(!S.data||S.data.failed)S.data={failed:e.message};else toast(e.message,true);haptic('error')}
   finally{S.busy=false;render()}
 }
 
@@ -139,6 +145,7 @@ function render(){
   if(!API){app.innerHTML=`<div class="center"><p>This app link is missing its server address. Ask the purchaser to check the app link in BotFather.</p></div>`;return}
   const d=S.data;
   if(!d){app.innerHTML=`<div class="center"><div><div class="spin"></div>Loading…</div></div>`;return}
+  if(d.failed){app.innerHTML=`<div class="center"><div><div style="font-size:40px">⚠️</div><p><b>Couldn't load</b></p><p>${esc(d.failed)}</p><p><button class="btn main" id="retry" type="button">Try again</button></p></div></div>`;document.getElementById('retry').onclick=()=>{S.data=null;render();run({action:'init'})};return}
   if(d.notelegram){app.innerHTML=`<div class="center"><p>Telegram couldn't confirm who you are. Close this and open it again from the bot.</p></div>`;return}
   if(!d.me){app.innerHTML=head()+regView();bindReg();return}
   if(d.me.status==='pending'){app.innerHTML=head()+`<div class="card"><h2>⏳ Waiting for approval</h2><p class="hint">Thanks, ${esc(d.me.name)}. The purchaser has been asked to approve you. You'll get a Telegram message when it's done, then open this app again.</p><button class="btn" id="reload" type="button">Check again</button></div>`;document.getElementById('reload').onclick=()=>run({action:'init'});return}

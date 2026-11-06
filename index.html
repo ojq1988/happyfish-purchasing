@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='12';
+var HF_VERSION='13';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -62,8 +62,13 @@ textarea.i{min-height:76px;resize:vertical}
 .chip.urg.on{background:var(--bad);border-color:var(--bad);color:#fff}
 .hint{font-size:13px;color:var(--muted)}
 .hint.warn{color:var(--warn)}
-.itemrow{display:grid;grid-template-columns:1fr 92px 34px;gap:6px;align-items:center}
-.itemrow .rm{border:0;background:var(--bg);border-radius:8px;height:40px;font-size:18px;color:var(--muted);cursor:pointer}
+.itembox{display:grid;gap:8px;padding:10px;border-radius:14px;background:color-mix(in srgb,var(--accent) 6%,var(--bg));border:1px solid color-mix(in srgb,var(--accent) 18%,transparent)}
+.ihead{display:flex;gap:8px;align-items:center}
+.inum{width:26px;height:26px;border-radius:50%;background:linear-gradient(120deg,var(--sea1),var(--sea2));color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center;flex:none}
+.irow2{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:8px;padding-left:34px}
+.itembox select.empty{color:var(--muted)}
+.icat{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.itembox .rm{border:0;background:var(--card);border-radius:8px;width:36px;height:40px;font-size:18px;color:var(--muted);cursor:pointer;flex:none}
 .ilist{display:grid;gap:6px}
 .irow{display:flex;gap:10px;align-items:center;background:color-mix(in srgb,var(--sc,var(--accent)) 7%,var(--bg));border-radius:11px;padding:10px 12px;font-size:15px}
 .irow.done .iname{text-decoration:line-through;color:var(--muted)}
@@ -131,7 +136,7 @@ textarea.i{min-height:76px;resize:vertical}
 const tg = window.Telegram && window.Telegram.WebApp;
 const API = new URLSearchParams(location.search).get('api') || '';
 const S = { data:null, tab:'new', open:null, panel:null, busy:false,
-  form:{branch:'',category:'',items:[{n:'',q:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]},
+  form:{branch:'',items:[{n:'',q:'',c:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]},
   reg:{name:'',role:'',branch:''}, home:null };
 
 function hfEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -248,15 +253,11 @@ const NEEDS=[['urg','🔴 Urgent, today',0],['1','Tomorrow',1],['3','In 3 days',
 function formView(){
   const d=S.data, f=S.form;
   if(!f.branch) f.branch = d.branches.includes(d.me.branch)?d.me.branch:'';
-  if(!f.category) f.category = '';
-  const cat=d.categories.find(c=>c.name===f.category);
-  const route = cat&&cat.approvers.length ? `Goes to ${cat.approvers.join(' / ')} for approval first.` : '';
   return `<div class="card">
     <label class="f">Branch<select class="i" data-f="branch"><option value="">Choose branch…</option>${d.branches.concat([d.allBranches]).map(x=>`<option${x===f.branch?' selected':''}>${hfEsc(x)}</option>`).join('')}</select></label>
-    <label class="f">Category<select class="i" data-f="category"><option value="">Choose category…</option>${d.categories.map(c=>`<option${c.name===f.category?' selected':''}>${hfEsc(c.name)}</option>`).join('')}</select></label>
-    ${route?`<div class="hint warn">⏳ ${hfEsc(route)}</div>`:''}
-    <div class="f" style="display:grid;gap:6px"><span class="hint" style="font-weight:600">What do you need?</span>
-      ${f.items.map((it,i)=>`<div class="itemrow"><input class="i" data-it="${i}" data-k="n" value="${hfEsc(it.n)}" placeholder="${i?'Next item':'e.g. Kickboards, junior size'}" aria-label="Item ${i+1}"><input class="i" data-it="${i}" data-k="q" value="${hfEsc(it.q)}" placeholder="Qty" aria-label="Quantity for item ${i+1}">${f.items.length>1?`<button type="button" class="rm" data-rmit="${i}" aria-label="Remove item ${i+1}">×</button>`:'<span></span>'}</div>`).join('')}
+    <div class="f" style="display:grid;gap:8px"><span class="hint" style="font-weight:600">What do you need? Add each item, then pick its category.</span>
+      ${f.items.map((it,i)=>`<div class="itembox"><div class="ihead"><span class="inum">${i+1}</span><input class="i" data-it="${i}" data-k="n" value="${hfEsc(it.n)}" placeholder="${i?'Next item':'e.g. Kickboards, junior size'}" aria-label="Item ${i+1}">${f.items.length>1?`<button type="button" class="rm" data-rmit="${i}" aria-label="Remove item ${i+1}">×</button>`:''}</div>
+        <div class="irow2"><input class="i" data-it="${i}" data-k="q" value="${hfEsc(it.q)}" placeholder="Qty, e.g. 10 pcs" aria-label="Quantity for item ${i+1}"><select class="i ${it.c?'':'empty'}" data-it="${i}" data-k="c" aria-label="Category for item ${i+1}"><option value="">Category…</option>${d.categories.map(c=>`<option${c.name===it.c?' selected':''}>${hfEsc(c.name)}</option>`).join('')}</select></div></div>`).join('')}
       ${f.items.length<30?'<button type="button" class="btn" id="additem">➕ Add another item</button>':''}
     </div>
     <div class="f" style="display:grid;gap:6px"><span class="hint" style="font-weight:600">When do you need it?</span>
@@ -288,11 +289,12 @@ function hfDetail(r){
   const c=r.can, p=S.panel&&S.panel.ref===r.ref?S.panel:null;
   const rv=r.review&&(!r.review.after||S.reviewOn===r.ref)?r.review:null;
   if(rv&&(!S.dec||S.dec.ref!==r.ref)) S.dec={ref:r.ref,v:rv.current.slice()};
+  const mixedCat=new Set(r.items.map(x=>x.c).filter(Boolean)).size>1;
   const ilist=r.items.length>1?`<div class="ilist">${r.items.map((it,i)=>{
     const mark=it.no?'<span>❌</span>':(it.canTick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`);
     const right=rv?`<select class="dec" data-dec="${i}" aria-label="Decision for ${hfEsc(it.n)}"><option value="">Choose…</option>${rv.options.map(o=>`<option value="${hfEsc(o.code)}" ${S.dec.v[i]===o.code?'selected':''}>${hfEsc(o.label)}</option>`).join('')}</select>`
       :(it.no?'<span class="who">not approved</span>':(it.buyer?`<span class="who">👤 ${it.mine?'You':hfEsc(String(it.buyer).split(' ')[0])}</span>`:''));
-    return `<div class="irow ${it.done?'done':''} ${it.no?'no':''}">${rv?`<span>${it.no?'❌':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}</span>${right}</div>`;
+    return `<div class="irow ${it.done?'done':''} ${it.no?'no':''}">${rv?`<span>${it.no?'❌':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}${mixedCat&&it.c?`<span class="icat">${hfEsc(it.c)}</span>`:''}</span>${right}</div>`;
   }).join('')}${rv?`<div class="acts"><button class="btn good" id="savedec" type="button" ${S.busy?'disabled':''}>✔️ ${rv.after?'Save changes':'Save decisions'}</button>${rv.after?'<button class="btn" id="closedec" type="button">Back</button>':''}</div><div class="hint">${S.data.team?'Choose who buys each item, or ❌ if it is not approved.':'Choose ✅ or ❌ for each item.'} The requester is told which items were approved.</div>`:''}${c.tick&&!rv?'<div class="hint">Tick each item when you buy it. When every approved item is ticked, the request is marked purchased.</div>':''}</div>`:'';
   let h=`<div class="det" data-stop="1">${ilist}<dl>
     <dt>Request no.</dt><dd class="ref">${hfEsc(r.ref)}</dd>
@@ -358,7 +360,7 @@ function todoView(){
       h+=hfSection('To buy: mine',rs.filter(r=>r.status==='approved'&&r.assignedToMe).sort(byPrio));
     } else h+=hfSection('Approved, to buy',rs.filter(r=>r.status==='approved').sort(byPrio));
     h+=hfSection('Purchased, waiting for branch',rs.filter(r=>r.status==='purchased'&&mineOrFree(r)).sort(byPrio));
-    if(lead) h+=hfSection('With Ops Manager / Head Coach',rs.filter(r=>r.status==='waiting approval').sort(byPrio));
+    if(lead) h+=hfSection('Older requests with approvers',rs.filter(r=>r.status==='waiting approval').sort(byPrio));
   } else {
     h+=hfSection('Waiting for your approval',rs.filter(r=>r.status==='waiting approval'&&r.can.approve).sort(byPrio));
   }
@@ -429,20 +431,20 @@ function bindForm(){
     for(const file of files){try{f.photos.push(await shrink(file))}catch(_){hfToast("Couldn't read one of the photos.",true)}}
     hfRender();
   };
-  document.querySelectorAll('[data-it]').forEach(el=>el.addEventListener('input',e=>{f.items[Number(el.dataset.it)][el.dataset.k]=e.target.value}));
+  document.querySelectorAll('[data-it]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input',e=>{f.items[Number(el.dataset.it)][el.dataset.k]=e.target.value;if(el.tagName==='SELECT')el.classList.toggle('empty',!e.target.value)}));
   document.querySelectorAll('[data-rmit]').forEach(b=>b.onclick=()=>{f.items.splice(Number(b.dataset.rmit),1);hfRender()});
-  const ai=document.getElementById('additem'); if(ai) ai.onclick=()=>{f.items.push({n:'',q:''});hfRender();const els=document.querySelectorAll('[data-k="n"]');if(els.length)els[els.length-1].focus()};
+  const ai=document.getElementById('additem'); if(ai) ai.onclick=()=>{f.items.push({n:'',q:'',c:(f.items[f.items.length-1]||{}).c||''});hfRender();const els=document.querySelectorAll('[data-k="n"]');if(els.length)els[els.length-1].focus()};
   document.querySelectorAll('[data-rmph]').forEach(b=>b.onclick=()=>{f.photos.splice(Number(b.dataset.rmph),1);hfRender()});
   const sb=document.getElementById('submit');
   if(sb) sb.onclick=async()=>{
     if(!f.branch){hfToast('Please choose a branch.',true);return}
-    if(!f.category){hfToast('Please choose a category.',true);return}
-    const items=f.items.map(x=>({n:x.n.trim(),q:x.q.trim()})).filter(x=>x.n);
+    const items=f.items.map(x=>({n:x.n.trim(),q:x.q.trim(),c:x.c||''})).filter(x=>x.n);
     if(!items.length){hfToast('Please type what you need.',true);return}
     if(items.some(x=>!x.q)){hfToast('Please add the quantity for each item.',true);return}
+    if(items.some(x=>!x.c)){hfToast('Please choose a category for each item.',true);return}
     if(f.needKey==='date'&&!f.need){hfToast('Please pick the date.',true);return}
-    const d=await hfRun({action:'submit',branch:f.branch,category:f.category,items,need:f.need,urgent:f.urgent,links:f.links,details:f.details,photos:f.photos});
-    if(d&&!d.error){S.form={branch:f.branch,category:'',items:[{n:'',q:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab='mine';hfRender();window.scrollTo(0,0)}
+    const d=await hfRun({action:'submit',branch:f.branch,items,need:f.need,urgent:f.urgent,links:f.links,details:f.details,photos:f.photos});
+    if(d&&!d.error){S.form={branch:f.branch,items:[{n:'',q:'',c:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab='mine';hfRender();window.scrollTo(0,0)}
   };
 }
 function shrink(file){

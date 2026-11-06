@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='7';
+var HF_VERSION='8';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -56,6 +56,13 @@ textarea.i{min-height:76px;resize:vertical}
 .chip.urg.on{background:var(--bad);border-color:var(--bad);color:#fff}
 .hint{font-size:13px;color:var(--muted)}
 .hint.warn{color:var(--warn)}
+.itemrow{display:grid;grid-template-columns:1fr 92px 34px;gap:6px;align-items:center}
+.itemrow .rm{border:0;background:var(--bg);border-radius:8px;height:40px;font-size:18px;color:var(--muted);cursor:pointer}
+.ilist{display:grid;gap:6px}
+.irow{display:flex;gap:10px;align-items:center;background:var(--bg);border-radius:10px;padding:8px 10px;font-size:14.5px}
+.irow.done .iname{text-decoration:line-through;color:var(--muted)}
+.tick{width:26px;height:26px;border-radius:7px;border:2px solid var(--line);background:var(--card);flex:none;cursor:pointer;font-size:15px;line-height:20px;padding:0;color:#fff}
+.tick.on{background:var(--good);border-color:var(--good)}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px}
 .thumb{position:relative;width:76px;height:76px;border-radius:10px;overflow:hidden;background:var(--bg)}
 .thumb img{width:100%;height:100%;object-fit:cover}
@@ -102,13 +109,13 @@ textarea.i{min-height:76px;resize:vertical}
 </style>
 </head>
 <body>
-<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v7)</span></div></div></div>
+<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v8)</span></div></div></div>
 <div class="bar" id="bar" hidden></div>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
 const API = new URLSearchParams(location.search).get('api') || '';
 const S = { data:null, tab:'new', open:null, panel:null, busy:false,
-  form:{branch:'',category:'',item:'',qty:'',need:'',needKey:'',urgent:false,links:'',details:'',photos:[]},
+  form:{branch:'',category:'',items:[{n:'',q:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]},
   reg:{name:'',role:'',branch:''}, home:null };
 
 function hfEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -171,7 +178,7 @@ function render_(){
   if(!tg || !tg.initData){app.innerHTML=`<div class="center"><div><div style="font-size:40px">🐟</div><p><b>Open this from Telegram</b></p><p>This app works inside the Happy Fish Purchasing bot. Open the bot in Telegram and tap <b>Open app</b>.</p></div></div>`;return}
   if(!API){app.innerHTML=`<div class="center"><p>This app link is missing its server address. Ask the purchaser to check the app link in BotFather.</p></div>`;return}
   const d=S.data;
-  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v7)</span></div></div>`;return}
+  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v8)</span></div></div>`;return}
   if(d.failed){app.innerHTML=`<div class="center"><div><div style="font-size:40px">⚠️</div><p><b>Couldn't load</b></p><p>${hfEsc(d.failed)}</p><p><button class="btn main" id="retry" type="button">Try again</button></p></div></div>`;document.getElementById('retry').onclick=()=>{S.data=null;hfRender();hfRun({action:'init'})};return}
   if(d.notelegram){app.innerHTML=`<div class="center"><p>Telegram couldn't confirm who you are. Close this and open it again from the bot.</p></div>`;return}
   if(!d.me){app.innerHTML=hfHead()+regView();bindReg();return}
@@ -229,8 +236,10 @@ function formView(){
     <label class="f">Branch<select class="i" data-f="branch"><option value="">Choose branch…</option>${d.branches.concat([d.allBranches]).map(x=>`<option${x===f.branch?' selected':''}>${hfEsc(x)}</option>`).join('')}</select></label>
     <label class="f">Category<select class="i" data-f="category"><option value="">Choose category…</option>${d.categories.map(c=>`<option${c.name===f.category?' selected':''}>${hfEsc(c.name)}</option>`).join('')}</select></label>
     ${route?`<div class="hint warn">⏳ ${hfEsc(route)}</div>`:''}
-    <label class="f">What do you need?<input class="i" data-f="item" value="${hfEsc(f.item)}" placeholder="e.g. Kickboards, junior size"></label>
-    <label class="f">Quantity<input class="i" data-f="qty" value="${hfEsc(f.qty)}" placeholder="e.g. 10 pcs, 3 boxes"></label>
+    <div class="f" style="display:grid;gap:6px"><span class="hint" style="font-weight:600">What do you need?</span>
+      ${f.items.map((it,i)=>`<div class="itemrow"><input class="i" data-it="${i}" data-k="n" value="${hfEsc(it.n)}" placeholder="${i?'Next item':'e.g. Kickboards, junior size'}" aria-label="Item ${i+1}"><input class="i" data-it="${i}" data-k="q" value="${hfEsc(it.q)}" placeholder="Qty" aria-label="Quantity for item ${i+1}">${f.items.length>1?`<button type="button" class="rm" data-rmit="${i}" aria-label="Remove item ${i+1}">×</button>`:'<span></span>'}</div>`).join('')}
+      ${f.items.length<30?'<button type="button" class="btn" id="additem">➕ Add another item</button>':''}
+    </div>
     <div class="f" style="display:grid;gap:6px"><span class="hint" style="font-weight:600">When do you need it?</span>
       <div class="chips">${NEEDS.map(n=>`<button type="button" class="chip ${n[0]==='urg'?'urg':''} ${f.needKey===n[0]?'on':''}" data-need="${n[0]}">${n[1]}</button>`).join('')}</div>
       ${f.needKey==='date'?`<input class="i" type="date" data-f="need" value="${hfEsc(f.need)}" min="${ymd(new Date())}">`:''}
@@ -249,7 +258,7 @@ function formView(){
 function reqCard(r){
   const open=S.open===r.ref;
   let h=`<div class="req ${r.urgent&&OPEN.includes(r.status)?'urgent':''}" data-ref="${hfEsc(r.ref)}">
-    <div class="top"><div class="it">${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}</div>${hfPill(r)}</div>
+    <div class="top"><div class="it">${r.items.length>1?`🧺 ${r.items.length} items${r.status==='approved'&&r.items.some(x=>x.done)?` <span class="meta">· ${r.items.filter(x=>x.done).length} bought</span>`:''}<div class="meta" style="font-weight:400">${hfEsc(r.items.map(x=>x.n).join(', ').slice(0,90))}</div>`:`${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}`}</div>${hfPill(r)}</div>
     <div class="meta">${hfEsc(r.branch)}${r.mine?'':' · '+hfEsc(r.requester)}${r.needText?' · by '+hfEsc(r.needText):''}${r.urgent&&OPEN.includes(r.status)?' · <b style="color:var(--bad)">Urgent</b>':''}</div>
     ${S.data.team&&S.data.me.purchaser&&OPEN.includes(r.status)?`<div class="meta">👤 ${r.assignee?(r.assignedToMe?'You':hfEsc(r.assignee)):'Not assigned yet'}</div>`:''}`;
   if(open) h+=hfDetail(r);
@@ -257,7 +266,8 @@ function reqCard(r){
 }
 function hfDetail(r){
   const c=r.can, p=S.panel&&S.panel.ref===r.ref?S.panel:null;
-  let h=`<div class="det" data-stop="1"><dl>
+  const ilist=r.items.length>1?`<div class="ilist">${r.items.map((it,i)=>`<div class="irow ${it.done?'done':''}">${c.tick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}</span></div>`).join('')}${c.tick?'<div class="hint">Tick each item when you buy it. When all are ticked, the request is marked purchased.</div>':''}</div>`:'';
+  let h=`<div class="det" data-stop="1">${ilist}<dl>
     <dt>Request no.</dt><dd class="ref">${hfEsc(r.ref)}</dd>
     <dt>Category</dt><dd>${hfEsc(r.category)}</dd>
     <dt>Asked by</dt><dd>${hfEsc(r.requester)} (${hfEsc(r.role)})</dd>
@@ -281,7 +291,7 @@ function hfDetail(r){
     (c.give||[]).forEach(p=>b.push(`<button class="btn" data-act="give" data-target="${hfEsc(p.id)}" type="button">👉 Give to ${hfEsc(String(p.name).split(' ')[0])}</button>`));
     if(c.approve) b.push(`<button class="btn good" data-act="approve" type="button">✅ Approve</button>`);
     if(c.reject) b.push(`<button class="btn bad" data-act="reject" data-panel="1" type="button">❌ Not approved</button>`);
-    if(c.purchased) b.push(`<button class="btn good" data-act="purchased" type="button">🛒 Mark purchased</button>`);
+    if(c.purchased) b.push(`<button class="btn good" data-act="purchased" type="button">🛒 ${r.items.length>1?'All bought':'Mark purchased'}</button>`);
     if(c.received) b.push(`<button class="btn good" data-act="received" type="button">📦 Received</button>`);
     if(c.note) b.push(`<button class="btn" data-act="note" data-panel="1" type="button">📝 Add note</button>`);
     if(c.message) b.push(`<button class="btn" data-act="message" data-panel="1" type="button">💬 ${r.mine&&!S.data.me.purchaser?'Message purchaser':'Message '+hfEsc(String(r.requester).split(' ')[0])}</button>`);
@@ -330,6 +340,7 @@ function bindMain(){
     S.open = S.open===el.dataset.ref?null:el.dataset.ref; S.panel=null; hfRender();
   }));
   document.querySelectorAll('[data-link]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();try{tg.openLink(a.dataset.link)}catch(_){window.open(a.dataset.link)}}));
+  document.querySelectorAll('[data-tick]').forEach(b=>b.onclick=()=>hfRun({action:'act',ref:S.open,what:'tick',text:b.dataset.tick}));
   document.querySelectorAll('[data-cancelpanel]').forEach(b=>b.onclick=()=>{S.panel=null;hfRender()});
   const pt=document.getElementById('ptext'); if(pt){pt.addEventListener('input',e=>S.panel.text=e.target.value);pt.focus()}
   document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{
@@ -360,16 +371,20 @@ function bindForm(){
     for(const file of files){try{f.photos.push(await shrink(file))}catch(_){hfToast("Couldn't read one of the photos.",true)}}
     hfRender();
   };
+  document.querySelectorAll('[data-it]').forEach(el=>el.addEventListener('input',e=>{f.items[Number(el.dataset.it)][el.dataset.k]=e.target.value}));
+  document.querySelectorAll('[data-rmit]').forEach(b=>b.onclick=()=>{f.items.splice(Number(b.dataset.rmit),1);hfRender()});
+  const ai=document.getElementById('additem'); if(ai) ai.onclick=()=>{f.items.push({n:'',q:''});hfRender();const els=document.querySelectorAll('[data-k="n"]');if(els.length)els[els.length-1].focus()};
   document.querySelectorAll('[data-rmph]').forEach(b=>b.onclick=()=>{f.photos.splice(Number(b.dataset.rmph),1);hfRender()});
   const sb=document.getElementById('submit');
   if(sb) sb.onclick=async()=>{
     if(!f.branch){hfToast('Please choose a branch.',true);return}
     if(!f.category){hfToast('Please choose a category.',true);return}
-    if(!f.item.trim()){hfToast('Please type what you need.',true);return}
-    if(!f.qty.trim()){hfToast('Please add the quantity.',true);return}
+    const items=f.items.map(x=>({n:x.n.trim(),q:x.q.trim()})).filter(x=>x.n);
+    if(!items.length){hfToast('Please type what you need.',true);return}
+    if(items.some(x=>!x.q)){hfToast('Please add the quantity for each item.',true);return}
     if(f.needKey==='date'&&!f.need){hfToast('Please pick the date.',true);return}
-    const d=await hfRun({action:'submit',branch:f.branch,category:f.category,item:f.item,qty:f.qty,need:f.need,urgent:f.urgent,links:f.links,details:f.details,photos:f.photos});
-    if(d&&!d.error){S.form={branch:f.branch,category:'',item:'',qty:'',need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab='mine';hfRender();window.scrollTo(0,0)}
+    const d=await hfRun({action:'submit',branch:f.branch,category:f.category,items,need:f.need,urgent:f.urgent,links:f.links,details:f.details,photos:f.photos});
+    if(d&&!d.error){S.form={branch:f.branch,category:'',items:[{n:'',q:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab='mine';hfRender();window.scrollTo(0,0)}
   };
 }
 function shrink(file){

@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='13';
+var HF_VERSION='14';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -104,6 +104,7 @@ textarea.i{min-height:76px;resize:vertical}
 .tags{display:flex;flex-wrap:wrap;gap:6px}
 .tag{font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--ink);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tag.urg{background:var(--bad);color:#fff}
+.tag.for{background:#f5c518;color:#4a3500}
 .tag.late{background:color-mix(in srgb,var(--bad) 14%,var(--card));color:var(--bad)}
 .tag.buyer{background:color-mix(in srgb,var(--c-wait) 13%,var(--card));color:var(--c-wait)}
 .tag.buyer.me{background:color-mix(in srgb,var(--c-approved) 14%,var(--card));color:var(--c-approved)}
@@ -260,6 +261,11 @@ function formView(){
         <div class="irow2"><input class="i" data-it="${i}" data-k="q" value="${hfEsc(it.q)}" placeholder="Qty, e.g. 10 pcs" aria-label="Quantity for item ${i+1}"><select class="i ${it.c?'':'empty'}" data-it="${i}" data-k="c" aria-label="Category for item ${i+1}"><option value="">Category…</option>${d.categories.map(c=>`<option${c.name===it.c?' selected':''}>${hfEsc(c.name)}</option>`).join('')}</select></div></div>`).join('')}
       ${f.items.length<30?'<button type="button" class="btn" id="additem">➕ Add another item</button>':''}
     </div>
+    <div class="f forbox" style="display:grid;gap:6px"><span class="hint" style="font-weight:600">👑 Requesting for someone else? <span style="font-weight:400">(optional)</span></span>
+      <input class="i" data-f="forName" value="${hfEsc(f.forName||'')}" placeholder="e.g. Boss" aria-label="Requesting for" maxlength="60">
+      ${(d.forNames||[]).length?`<div class="chips">${d.forNames.slice(0,6).map(n=>`<button type="button" class="chip ${f.forName===n?'on':''}" data-forpick="${hfEsc(n)}">${hfEsc(n)}</button>`).join('')}</div>`:''}
+      ${d.me.selfApprove?'<span class="hint">When you request for someone else, it is approved straight away.</span>':''}
+    </div>
     <div class="f" style="display:grid;gap:6px"><span class="hint" style="font-weight:600">When do you need it?</span>
       <div class="chips">${NEEDS.map(n=>`<button type="button" class="chip ${n[0]==='urg'?'urg':''} ${f.needKey===n[0]?'on':''}" data-need="${n[0]}">${n[1]}</button>`).join('')}</div>
       ${f.needKey==='date'?`<input class="i" type="date" data-f="need" value="${hfEsc(f.need)}" min="${ymd(new Date())}">`:''}
@@ -281,7 +287,7 @@ function reqCard(r){
   const late=live&&r.status!=='purchased'&&r.need&&r.need<hfToday();
   let h=`<div class="req s-${st} ${r.urgent&&live?'urgent':''} ${open?'open':''}" data-ref="${hfEsc(r.ref)}">
     <div class="top"><div class="it">${r.items.length>1?`🧺 ${r.items.length} items${r.status==='approved'&&r.items.some(x=>x.done)?` <span class="meta">· ${r.items.filter(x=>x.done&&!x.no).length} of ${r.items.filter(x=>!x.no).length} bought</span>`:''}<div class="meta" style="font-weight:400">${hfEsc(r.items.map(x=>x.n).join(', ').slice(0,90))}</div>`:`${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}`}</div>${hfPill(r)}</div>
-    <div class="tags">${r.urgent&&live?'<span class="tag urg">🔥 Urgent</span>':''}<span class="tag">📍 ${hfEsc(r.branch)}</span>${r.mine?'':`<span class="tag">🙂 ${hfEsc(r.requester)}</span>`}${r.needText?`<span class="tag ${late?'late':''}">📅 ${late?'Late · ':''}${hfEsc(r.needText)}</span>`:''}${S.data.team&&S.data.me.purchaser&&live?(r.assignee?`<span class="tag buyer ${r.assignedToMe?'me':''}">🛍️ ${hfWho(r)}</span>`:'<span class="tag buyer none">🛍️ Not assigned</span>'):''}</div>`;
+    <div class="tags">${r.urgent&&live?'<span class="tag urg">🔥 Urgent</span>':''}${r.forName?`<span class="tag for">👑 For ${hfEsc(r.forName)}</span>`:''}<span class="tag">📍 ${hfEsc(r.branch)}</span>${r.mine?'':`<span class="tag">🙂 ${hfEsc(r.requester)}</span>`}${r.needText?`<span class="tag ${late?'late':''}">📅 ${late?'Late · ':''}${hfEsc(r.needText)}</span>`:''}${S.data.team&&S.data.me.purchaser&&live?(r.assignee?`<span class="tag buyer ${r.assignedToMe?'me':''}">🛍️ ${hfWho(r)}</span>`:'<span class="tag buyer none">🛍️ Not assigned</span>'):''}</div>`;
   if(open) h+=hfDetail(r);
   return h+'</div>';
 }
@@ -299,6 +305,7 @@ function hfDetail(r){
   let h=`<div class="det" data-stop="1">${ilist}<dl>
     <dt>Request no.</dt><dd class="ref">${hfEsc(r.ref)}</dd>
     <dt>Category</dt><dd>${hfEsc(r.category)}</dd>
+    ${r.forName?`<dt>For</dt><dd>👑 ${hfEsc(r.forName)}</dd>`:''}
     <dt>Asked by</dt><dd>${hfEsc(r.requester)} (${hfEsc(r.role)})</dd>
     <dt>Sent</dt><dd>${hfEsc(r.created)}</dd>
     ${r.status==='waiting approval'?`<dt>Approver</dt><dd>${hfEsc(r.approver)}</dd>`:''}
@@ -420,6 +427,7 @@ function bindForm(){
     el.addEventListener('input',e=>{f[el.dataset.f]=e.target.value});
     if(el.tagName==='SELECT') el.addEventListener('change',()=>hfRender());
   });
+  document.querySelectorAll('[data-forpick]').forEach(b=>b.onclick=()=>{f.forName=f.forName===b.dataset.forpick?'':b.dataset.forpick;hfRender()});
   document.querySelectorAll('[data-need]').forEach(b=>b.onclick=()=>{
     const n=NEEDS.find(x=>x[0]===b.dataset.need); f.needKey=n[0]; f.urgent=n[0]==='urg';
     f.need = n[2]===null ? (n[0]==='date'?f.need:'') : addDays(n[2]); hfRender();
@@ -443,8 +451,8 @@ function bindForm(){
     if(items.some(x=>!x.q)){hfToast('Please add the quantity for each item.',true);return}
     if(items.some(x=>!x.c)){hfToast('Please choose a category for each item.',true);return}
     if(f.needKey==='date'&&!f.need){hfToast('Please pick the date.',true);return}
-    const d=await hfRun({action:'submit',branch:f.branch,items,need:f.need,urgent:f.urgent,links:f.links,details:f.details,photos:f.photos});
-    if(d&&!d.error){S.form={branch:f.branch,items:[{n:'',q:'',c:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab='mine';hfRender();window.scrollTo(0,0)}
+    const d=await hfRun({action:'submit',branch:f.branch,forName:(f.forName||'').trim(),items,need:f.need,urgent:f.urgent,links:f.links,details:f.details,photos:f.photos});
+    if(d&&!d.error){S.form={branch:f.branch,forName:'',items:[{n:'',q:'',c:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab='mine';hfRender();window.scrollTo(0,0)}
   };
 }
 function shrink(file){

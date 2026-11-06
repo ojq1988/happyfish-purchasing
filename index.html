@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='5';
+var HF_VERSION='6';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -102,7 +102,7 @@ textarea.i{min-height:76px;resize:vertical}
 </style>
 </head>
 <body>
-<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v5)</span></div></div></div>
+<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v6)</span></div></div></div>
 <div class="bar" id="bar" hidden></div>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -171,7 +171,7 @@ function render_(){
   if(!tg || !tg.initData){app.innerHTML=`<div class="center"><div><div style="font-size:40px">🐟</div><p><b>Open this from Telegram</b></p><p>This app works inside the Happy Fish Purchasing bot. Open the bot in Telegram and tap <b>Open app</b>.</p></div></div>`;return}
   if(!API){app.innerHTML=`<div class="center"><p>This app link is missing its server address. Ask the purchaser to check the app link in BotFather.</p></div>`;return}
   const d=S.data;
-  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v5)</span></div></div>`;return}
+  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v6)</span></div></div>`;return}
   if(d.failed){app.innerHTML=`<div class="center"><div><div style="font-size:40px">⚠️</div><p><b>Couldn't load</b></p><p>${hfEsc(d.failed)}</p><p><button class="btn main" id="retry" type="button">Try again</button></p></div></div>`;document.getElementById('retry').onclick=()=>{S.data=null;hfRender();hfRun({action:'init'})};return}
   if(d.notelegram){app.innerHTML=`<div class="center"><p>Telegram couldn't confirm who you are. Close this and open it again from the bot.</p></div>`;return}
   if(!d.me){app.innerHTML=hfHead()+regView();bindReg();return}
@@ -282,6 +282,7 @@ function hfDetail(r){
     if(c.note) b.push(`<button class="btn" data-act="note" data-panel="1" type="button">📝 Add note</button>`);
     if(c.message) b.push(`<button class="btn" data-act="message" data-panel="1" type="button">💬 ${r.mine&&!S.data.me.purchaser?'Message purchaser':'Message '+hfEsc(String(r.requester).split(' ')[0])}</button>`);
     if(c.photos) b.push(`<button class="btn" data-act="photos" type="button">📷 See photos in chat</button>`);
+    if(c.undo) b.push(`<button class="btn" data-act="undo" type="button">↩️ ${hfEsc(r.undoLabel)}</button>`);
     if(c.cancel) b.push(`<button class="btn bad" data-act="cancel" type="button">🚫 Cancel request</button>`);
     if(b.length) h+=`<div class="acts">${b.join('')}</div>`;
   }
@@ -328,9 +329,10 @@ function bindMain(){
     const text=b.dataset.send?(S.panel&&S.panel.text||'').trim():'';
     if(b.dataset.send&&what!=='reject'&&!text){hfToast('Type something first.',true);return}
     const go=()=>hfRun({action:'act',ref,what,text}).then(d=>{if(d&&!d.error){S.panel=null;hfRender()}});
-    if(what==='cancel'){confirmThen('Cancel this request?',go)}else go();
+    if(what==='cancel'){confirmThen('Cancel this request?',go)}else if(what==='undo'){confirmThen(r0Label()+'?',go)}else go();
   });
 }
+function r0Label(){const r=(S.data.requests||[]).find(x=>x.ref===S.open);return r?r.undoLabel:'Undo'}
 function confirmThen(msg,fn){try{tg.showConfirm(msg,ok=>{if(ok)fn()})}catch(_){fn()}}
 function bindForm(){
   const f=S.form;

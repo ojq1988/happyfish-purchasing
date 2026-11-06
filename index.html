@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='10';
+var HF_VERSION='11';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -61,6 +61,9 @@ textarea.i{min-height:76px;resize:vertical}
 .ilist{display:grid;gap:6px}
 .irow{display:flex;gap:10px;align-items:center;background:var(--bg);border-radius:10px;padding:8px 10px;font-size:14.5px}
 .irow.done .iname{text-decoration:line-through;color:var(--muted)}
+.irow.no .iname{text-decoration:line-through;color:var(--muted)}
+.who{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.dec{margin-left:auto;max-width:48%;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:14px}
 .tick{width:26px;height:26px;border-radius:7px;border:2px solid var(--line);background:var(--card);flex:none;cursor:pointer;font-size:15px;line-height:20px;padding:0;color:#fff}
 .tick.on{background:var(--good);border-color:var(--good)}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px}
@@ -261,22 +264,29 @@ function formView(){
 function reqCard(r){
   const open=S.open===r.ref;
   let h=`<div class="req ${r.urgent&&OPEN.includes(r.status)?'urgent':''}" data-ref="${hfEsc(r.ref)}">
-    <div class="top"><div class="it">${r.items.length>1?`🧺 ${r.items.length} items${r.status==='approved'&&r.items.some(x=>x.done)?` <span class="meta">· ${r.items.filter(x=>x.done).length} bought</span>`:''}<div class="meta" style="font-weight:400">${hfEsc(r.items.map(x=>x.n).join(', ').slice(0,90))}</div>`:`${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}`}</div>${hfPill(r)}</div>
+    <div class="top"><div class="it">${r.items.length>1?`🧺 ${r.items.length} items${r.status==='approved'&&r.items.some(x=>x.done)?` <span class="meta">· ${r.items.filter(x=>x.done&&!x.no).length} of ${r.items.filter(x=>!x.no).length} bought</span>`:''}<div class="meta" style="font-weight:400">${hfEsc(r.items.map(x=>x.n).join(', ').slice(0,90))}</div>`:`${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}`}</div>${hfPill(r)}</div>
     <div class="meta">${hfEsc(r.branch)}${r.mine?'':' · '+hfEsc(r.requester)}${r.needText?' · by '+hfEsc(r.needText):''}${r.urgent&&OPEN.includes(r.status)?' · <b style="color:var(--bad)">Urgent</b>':''}</div>
-    ${S.data.team&&S.data.me.purchaser&&OPEN.includes(r.status)?`<div class="meta">👤 ${r.assignee?(r.assignedToMe?'You':hfEsc(r.assignee)):'Not assigned yet'}</div>`:''}`;
+    ${S.data.team&&S.data.me.purchaser&&OPEN.includes(r.status)?`<div class="meta">👤 ${r.assignee?hfWho(r):'Not assigned yet'}</div>`:''}`;
   if(open) h+=hfDetail(r);
   return h+'</div>';
 }
 function hfDetail(r){
   const c=r.can, p=S.panel&&S.panel.ref===r.ref?S.panel:null;
-  const ilist=r.items.length>1?`<div class="ilist">${r.items.map((it,i)=>`<div class="irow ${it.done?'done':''}">${c.tick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}</span></div>`).join('')}${c.tick?'<div class="hint">Tick each item when you buy it. When all are ticked, the request is marked purchased.</div>':''}</div>`:'';
+  const rv=r.review&&(!r.review.after||S.reviewOn===r.ref)?r.review:null;
+  if(rv&&(!S.dec||S.dec.ref!==r.ref)) S.dec={ref:r.ref,v:rv.current.slice()};
+  const ilist=r.items.length>1?`<div class="ilist">${r.items.map((it,i)=>{
+    const mark=it.no?'<span>❌</span>':(it.canTick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`);
+    const right=rv?`<select class="dec" data-dec="${i}" aria-label="Decision for ${hfEsc(it.n)}"><option value="">Choose…</option>${rv.options.map(o=>`<option value="${hfEsc(o.code)}" ${S.dec.v[i]===o.code?'selected':''}>${hfEsc(o.label)}</option>`).join('')}</select>`
+      :(it.no?'<span class="who">not approved</span>':(it.buyer?`<span class="who">👤 ${it.mine?'You':hfEsc(String(it.buyer).split(' ')[0])}</span>`:''));
+    return `<div class="irow ${it.done?'done':''} ${it.no?'no':''}">${rv?`<span>${it.no?'❌':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}</span>${right}</div>`;
+  }).join('')}${rv?`<div class="acts"><button class="btn good" id="savedec" type="button" ${S.busy?'disabled':''}>✔️ ${rv.after?'Save changes':'Save decisions'}</button>${rv.after?'<button class="btn" id="closedec" type="button">Back</button>':''}</div><div class="hint">${S.data.team?'Choose who buys each item, or ❌ if it is not approved.':'Choose ✅ or ❌ for each item.'} The requester is told which items were approved.</div>`:''}${c.tick&&!rv?'<div class="hint">Tick each item when you buy it. When every approved item is ticked, the request is marked purchased.</div>':''}</div>`:'';
   let h=`<div class="det" data-stop="1">${ilist}<dl>
     <dt>Request no.</dt><dd class="ref">${hfEsc(r.ref)}</dd>
     <dt>Category</dt><dd>${hfEsc(r.category)}</dd>
     <dt>Asked by</dt><dd>${hfEsc(r.requester)} (${hfEsc(r.role)})</dd>
     <dt>Sent</dt><dd>${hfEsc(r.created)}</dd>
     ${r.status==='waiting approval'?`<dt>Approver</dt><dd>${hfEsc(r.approver)}</dd>`:''}
-    ${S.data.team&&OPEN.includes(r.status)?`<dt>Handled by</dt><dd>${r.assignee?hfEsc(r.assignee):'Not assigned yet'}</dd>`:''}
+    ${S.data.team&&OPEN.includes(r.status)?`<dt>Handled by</dt><dd>${r.assignee?hfWho(r):'Not assigned yet'}</dd>`:''}
     ${r.decidedBy?`<dt>Decided by</dt><dd>${hfEsc(r.decidedBy)}</dd>`:''}
     ${r.purchasedAt?`<dt>Purchased</dt><dd>${hfEsc(r.purchasedAt)}</dd>`:''}
     ${r.receivedAt?`<dt>Received</dt><dd>${hfEsc(r.receivedAt)}</dd>`:''}
@@ -291,12 +301,14 @@ function hfDetail(r){
   } else {
     const b=[];
     const team=(c.approveTo||[]).length>0;
-    if(c.approve) b.push(`<button class="btn good" data-act="approve" type="button">✅ Approve${team?": I'll buy":''}</button>`);
-    (c.approveTo||[]).forEach(p=>b.push(`<button class="btn good" data-act="approve" data-target="${hfEsc(p.id)}" type="button">✅ Approve: ${hfEsc(String(p.name).split(' ')[0])} buys</button>`));
+    const all=r.items.length>1?' all':'';
+    if(c.approve) b.push(`<button class="btn good" data-act="approve" type="button">✅ Approve${all}${team?": I'll buy":''}</button>`);
+    (c.approveTo||[]).forEach(p=>b.push(`<button class="btn good" data-act="approve" data-target="${hfEsc(p.id)}" type="button">✅ Approve${all}: ${hfEsc(String(p.name).split(' ')[0])} buys</button>`));
     if(c.take) b.push(`<button class="btn main" data-act="take" type="button">🙋 ${r.assignee?'Take back from '+hfEsc(String(r.assignee).split(' ')[0]):"I'll buy it"}</button>`);
     (c.give||[]).forEach(p=>b.push(`<button class="btn" data-act="give" data-target="${hfEsc(p.id)}" type="button">${p.back?'↩️ Hand back to ':'👉 Give to '}${hfEsc(String(p.name).split(' ')[0])}</button>`));
     if(c.reject) b.push(`<button class="btn bad" data-act="reject" data-panel="1" type="button">❌ Not approved</button>`);
-    if(c.purchased) b.push(`<button class="btn good" data-act="purchased" type="button">🛒 ${r.items.length>1?'All bought':'Mark purchased'}</button>`);
+    if(c.purchased) b.push(`<button class="btn good" data-act="purchased" type="button">🛒 ${r.items.length>1?((r.assignees||[]).length>1?'All my items bought':'All bought'):'Mark purchased'}</button>`);
+    if(r.review&&r.review.after&&S.reviewOn!==r.ref) b.push(`<button class="btn" id="opendec" type="button">👥 Change who buys each item</button>`);
     if(c.received) b.push(`<button class="btn good" data-act="received" type="button">📦 Received</button>`);
     if(c.note) b.push(`<button class="btn" data-act="note" data-panel="1" type="button">📝 Add note</button>`);
     if(c.message) b.push(`<button class="btn" data-act="message" data-panel="1" type="button">💬 ${r.mine&&!S.data.me.purchaser?'Message purchaser':'Message '+hfEsc(String(r.requester).split(' ')[0])}</button>`);
@@ -336,12 +348,12 @@ function teamView(){
   const rs=(S.data.requests||[]).filter(r=>OPEN.includes(r.status));
   const order={'new':0,'waiting approval':1,'approved':2,'purchased':3};
   const srt=(a,b)=>(order[a.status]-order[b.status])||byPrio(a,b);
-  const names=[...new Set(rs.filter(r=>r.assignee&&!r.assignedToMe).map(r=>r.assignee))];
+  const names=[...new Set(rs.flatMap(r=>(r.assignees||[]).filter(n=>n!==S.data.me.name)))];
   (S.data.purchasers||[]).forEach(n=>{if(n!==S.data.me.name&&!names.includes(n))names.push(n)});
   const mine=rs.filter(r=>r.assignedToMe).sort(srt), free=rs.filter(r=>!r.assignee).sort(srt);
-  let h=`<div class="card" style="gap:6px"><b>Who is handling what</b><div class="hint">🙋 You: <b>${mine.length}</b>${names.map(n=>` · 👤 ${hfEsc(n)}: <b>${rs.filter(r=>r.assignee===n&&!r.assignedToMe).length}</b>`).join('')} · Not assigned: <b>${free.length}</b></div></div>`;
+  let h=`<div class="card" style="gap:6px"><b>Who is handling what</b><div class="hint">🙋 You: <b>${mine.length}</b>${names.map(n=>` · 👤 ${hfEsc(n)}: <b>${rs.filter(r=>(r.assignees||[]).includes(n)).length}</b>`).join('')} · Not assigned: <b>${free.length}</b></div></div>`;
   h+=hfSection('🙋 You are handling',mine)||`<div class="sec">🙋 You are handling (0)</div><div class="empty" style="padding:10px">Nothing right now.</div>`;
-  names.forEach(n=>{const l=rs.filter(r=>r.assignee===n&&!r.assignedToMe).sort(srt);h+=hfSection('👤 '+n+' is handling',l)||`<div class="sec">👤 ${hfEsc(n)} is handling (0)</div><div class="empty" style="padding:10px">Nothing right now.</div>`});
+  names.forEach(n=>{const l=rs.filter(r=>(r.assignees||[]).includes(n)).sort(srt);h+=hfSection('👤 '+n+' is handling',l)||`<div class="sec">👤 ${hfEsc(n)} is handling (0)</div><div class="empty" style="padding:10px">Nothing right now.</div>`});
   h+=hfSection('Not assigned yet',free);
   return h+refreshBtn();
 }
@@ -359,6 +371,13 @@ function bindMain(){
   }));
   document.querySelectorAll('[data-link]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();try{tg.openLink(a.dataset.link)}catch(_){window.open(a.dataset.link)}}));
   document.querySelectorAll('[data-tick]').forEach(b=>b.onclick=()=>hfRun({action:'act',ref:S.open,what:'tick',text:b.dataset.tick}));
+  document.querySelectorAll('[data-dec]').forEach(el=>{el.addEventListener('click',e=>e.stopPropagation());el.onchange=()=>{if(S.dec)S.dec.v[Number(el.dataset.dec)]=el.value}});
+  const sd=document.getElementById('savedec'); if(sd) sd.onclick=()=>{
+    if(!S.dec||S.dec.v.some(x=>!x)){hfToast('Please choose for every item.',true);return}
+    hfRun({action:'act',ref:S.open,what:'decide',text:JSON.stringify(S.dec.v)}).then(d=>{if(d&&!d.error){S.dec=null;S.reviewOn=null;hfRender()}});
+  };
+  const od=document.getElementById('opendec'); if(od) od.onclick=()=>{S.reviewOn=S.open;S.dec=null;hfRender()};
+  const cd=document.getElementById('closedec'); if(cd) cd.onclick=()=>{S.reviewOn=null;S.dec=null;hfRender()};
   document.querySelectorAll('[data-cancelpanel]').forEach(b=>b.onclick=()=>{S.panel=null;hfRender()});
   const pt=document.getElementById('ptext'); if(pt){pt.addEventListener('input',e=>S.panel.text=e.target.value);pt.focus()}
   document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{
@@ -370,6 +389,7 @@ function bindMain(){
     if(what==='cancel'){confirmThen('Cancel this request?',go)}else if(what==='undo'){confirmThen(r0Label()+'?',go)}else go();
   });
 }
+function hfWho(r){const a=(r.assignees&&r.assignees.length?r.assignees:[r.assignee]);return a.map(n=>n===S.data.me.name?'You':hfEsc(n)).join(' & ')}
 function r0Label(){const r=(S.data.requests||[]).find(x=>x.ref===S.open);return r?r.undoLabel:'Undo'}
 function confirmThen(msg,fn){try{tg.showConfirm(msg,ok=>{if(ok)fn()})}catch(_){fn()}}
 function bindForm(){

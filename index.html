@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='6';
+var HF_VERSION='7';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -102,7 +102,7 @@ textarea.i{min-height:76px;resize:vertical}
 </style>
 </head>
 <body>
-<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v6)</span></div></div></div>
+<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v7)</span></div></div></div>
 <div class="bar" id="bar" hidden></div>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -171,7 +171,7 @@ function render_(){
   if(!tg || !tg.initData){app.innerHTML=`<div class="center"><div><div style="font-size:40px">🐟</div><p><b>Open this from Telegram</b></p><p>This app works inside the Happy Fish Purchasing bot. Open the bot in Telegram and tap <b>Open app</b>.</p></div></div>`;return}
   if(!API){app.innerHTML=`<div class="center"><p>This app link is missing its server address. Ask the purchaser to check the app link in BotFather.</p></div>`;return}
   const d=S.data;
-  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v6)</span></div></div>`;return}
+  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v7)</span></div></div>`;return}
   if(d.failed){app.innerHTML=`<div class="center"><div><div style="font-size:40px">⚠️</div><p><b>Couldn't load</b></p><p>${hfEsc(d.failed)}</p><p><button class="btn main" id="retry" type="button">Try again</button></p></div></div>`;document.getElementById('retry').onclick=()=>{S.data=null;hfRender();hfRun({action:'init'})};return}
   if(d.notelegram){app.innerHTML=`<div class="center"><p>Telegram couldn't confirm who you are. Close this and open it again from the bot.</p></div>`;return}
   if(!d.me){app.innerHTML=hfHead()+regView();bindReg();return}
@@ -250,7 +250,8 @@ function reqCard(r){
   const open=S.open===r.ref;
   let h=`<div class="req ${r.urgent&&OPEN.includes(r.status)?'urgent':''}" data-ref="${hfEsc(r.ref)}">
     <div class="top"><div class="it">${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}</div>${hfPill(r)}</div>
-    <div class="meta">${hfEsc(r.branch)}${r.mine?'':' · '+hfEsc(r.requester)}${r.needText?' · by '+hfEsc(r.needText):''}${r.urgent&&OPEN.includes(r.status)?' · <b style="color:var(--bad)">Urgent</b>':''}</div>`;
+    <div class="meta">${hfEsc(r.branch)}${r.mine?'':' · '+hfEsc(r.requester)}${r.needText?' · by '+hfEsc(r.needText):''}${r.urgent&&OPEN.includes(r.status)?' · <b style="color:var(--bad)">Urgent</b>':''}</div>
+    ${S.data.team&&S.data.me.purchaser&&OPEN.includes(r.status)?`<div class="meta">👤 ${r.assignee?(r.assignedToMe?'You':hfEsc(r.assignee)):'Not assigned yet'}</div>`:''}`;
   if(open) h+=hfDetail(r);
   return h+'</div>';
 }
@@ -262,6 +263,7 @@ function hfDetail(r){
     <dt>Asked by</dt><dd>${hfEsc(r.requester)} (${hfEsc(r.role)})</dd>
     <dt>Sent</dt><dd>${hfEsc(r.created)}</dd>
     ${r.status==='waiting approval'?`<dt>Approver</dt><dd>${hfEsc(r.approver)}</dd>`:''}
+    ${S.data.team&&OPEN.includes(r.status)?`<dt>Handled by</dt><dd>${r.assignee?hfEsc(r.assignee):'Not assigned yet'}</dd>`:''}
     ${r.decidedBy?`<dt>Decided by</dt><dd>${hfEsc(r.decidedBy)}</dd>`:''}
     ${r.purchasedAt?`<dt>Purchased</dt><dd>${hfEsc(r.purchasedAt)}</dd>`:''}
     ${r.receivedAt?`<dt>Received</dt><dd>${hfEsc(r.receivedAt)}</dd>`:''}
@@ -275,6 +277,8 @@ function hfDetail(r){
       <div class="acts"><button class="btn ${p.what==='reject'?'bad':'main'}" data-act="${p.what}" data-send="1" type="button" ${S.busy?'disabled':''}>${p.what==='reject'?'Not approved':p.what==='note'?'Save note':'Send'}</button><button class="btn" data-cancelpanel="1" type="button">Back</button></div>`;
   } else {
     const b=[];
+    if(c.take) b.push(`<button class="btn main" data-act="take" type="button">🙋 ${r.assignee?'Take over from '+hfEsc(String(r.assignee).split(' ')[0]):"I'll handle this"}</button>`);
+    (c.give||[]).forEach(p=>b.push(`<button class="btn" data-act="give" data-target="${hfEsc(p.id)}" type="button">👉 Give to ${hfEsc(String(p.name).split(' ')[0])}</button>`));
     if(c.approve) b.push(`<button class="btn good" data-act="approve" type="button">✅ Approve</button>`);
     if(c.reject) b.push(`<button class="btn bad" data-act="reject" data-panel="1" type="button">❌ Not approved</button>`);
     if(c.purchased) b.push(`<button class="btn good" data-act="purchased" type="button">🛒 Mark purchased</button>`);
@@ -299,10 +303,15 @@ function todoView(){
   const rs=S.data.requests||[], me=S.data.me;
   let h='';
   if(me.purchaser){
-    h+=hfSection('Waiting for your approval',rs.filter(r=>r.status==='new'&&r.can.approve).sort(byPrio));
-    h+=hfSection('Approved, to buy',rs.filter(r=>r.can.purchased).sort(byPrio));
-    h+=hfSection('Purchased, waiting for branch',rs.filter(r=>r.status==='purchased').sort(byPrio));
+    const mineOrFree=r=>r.assignedToMe||!r.assignee;
+    h+=hfSection('Waiting for approval',rs.filter(r=>r.status==='new'&&mineOrFree(r)).sort(byPrio));
+    if(S.data.team){
+      h+=hfSection('To buy: mine',rs.filter(r=>r.status==='approved'&&r.assignedToMe).sort(byPrio));
+      h+=hfSection('To buy: not assigned yet',rs.filter(r=>r.status==='approved'&&!r.assignee).sort(byPrio));
+    } else h+=hfSection('Approved, to buy',rs.filter(r=>r.status==='approved').sort(byPrio));
+    h+=hfSection('Purchased, waiting for branch',rs.filter(r=>r.status==='purchased'&&mineOrFree(r)).sort(byPrio));
     h+=hfSection('With Ops Manager / Head Coach',rs.filter(r=>r.status==='waiting approval').sort(byPrio));
+    if(S.data.team) h+=hfSection('Handled by others',rs.filter(r=>OPEN.includes(r.status)&&r.assignee&&!r.assignedToMe).sort(byPrio));
   } else {
     h+=hfSection('Waiting for your approval',rs.filter(r=>r.status==='waiting approval'&&r.can.approve).sort(byPrio));
   }
@@ -326,7 +335,7 @@ function bindMain(){
   document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{
     const ref=S.open, what=b.dataset.act;
     if(b.dataset.panel){S.panel={ref,what,text:''};hfRender();return}
-    const text=b.dataset.send?(S.panel&&S.panel.text||'').trim():'';
+    const text=b.dataset.target?b.dataset.target:(b.dataset.send?(S.panel&&S.panel.text||'').trim():'');
     if(b.dataset.send&&what!=='reject'&&!text){hfToast('Type something first.',true);return}
     const go=()=>hfRun({action:'act',ref,what,text}).then(d=>{if(d&&!d.error){S.panel=null;hfRender()}});
     if(what==='cancel'){confirmThen('Cancel this request?',go)}else if(what==='undo'){confirmThen(r0Label()+'?',go)}else go();

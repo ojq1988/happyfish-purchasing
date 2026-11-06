@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='8';
+var HF_VERSION='9';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -109,7 +109,7 @@ textarea.i{min-height:76px;resize:vertical}
 </style>
 </head>
 <body>
-<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v8)</span></div></div></div>
+<div class="wrap" id="app"><div class="center" id="hfload"><div><div class="spin"></div>Loading… <span style="opacity:.6">(v9)</span></div></div></div>
 <div class="bar" id="bar" hidden></div>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -178,7 +178,7 @@ function render_(){
   if(!tg || !tg.initData){app.innerHTML=`<div class="center"><div><div style="font-size:40px">🐟</div><p><b>Open this from Telegram</b></p><p>This app works inside the Happy Fish Purchasing bot. Open the bot in Telegram and tap <b>Open app</b>.</p></div></div>`;return}
   if(!API){app.innerHTML=`<div class="center"><p>This app link is missing its server address. Ask the purchaser to check the app link in BotFather.</p></div>`;return}
   const d=S.data;
-  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v8)</span></div></div>`;return}
+  if(!d){app.innerHTML=`<div class="center" id="hfload"><div><div class="spin"></div>Connecting to the server… <span style="opacity:.6">(v9)</span></div></div>`;return}
   if(d.failed){app.innerHTML=`<div class="center"><div><div style="font-size:40px">⚠️</div><p><b>Couldn't load</b></p><p>${hfEsc(d.failed)}</p><p><button class="btn main" id="retry" type="button">Try again</button></p></div></div>`;document.getElementById('retry').onclick=()=>{S.data=null;hfRender();hfRun({action:'init'})};return}
   if(d.notelegram){app.innerHTML=`<div class="center"><p>Telegram couldn't confirm who you are. Close this and open it again from the bot.</p></div>`;return}
   if(!d.me){app.innerHTML=hfHead()+regView();bindReg();return}
@@ -187,15 +187,18 @@ function render_(){
 
   const showTodo = d.me.purchaser || d.me.approver;
   if(S.tab==='todo' && !showTodo) S.tab='new';
+  if(S.tab==='team' && !(d.team&&d.me.purchaser)) S.tab='new';
   const todoCount = (d.requests||[]).filter(r=>r.can.approve||r.can.purchased).length;
   const mineOpen = (d.requests||[]).filter(r=>r.mine&&r.can.received).length;
   let h = hfHead() + homeBanner() + `<nav class="tabs" role="tablist">
     <button type="button" role="tab" data-tab="new" class="${S.tab==='new'?'on':''}">🛒 Request</button>
     <button type="button" role="tab" data-tab="mine" class="${S.tab==='mine'?'on':''}">📋 Mine${mineOpen?`<span class="badge">${mineOpen}</span>`:''}</button>
     ${showTodo?`<button type="button" role="tab" data-tab="todo" class="${S.tab==='todo'?'on':''}">📥 To do${todoCount?`<span class="badge">${todoCount}</span>`:''}</button>`:''}
+    ${d.team&&d.me.purchaser?`<button type="button" role="tab" data-tab="team" class="${S.tab==='team'?'on':''}">👥 Team</button>`:''}
   </nav>`;
   if(S.tab==='new'){h+=formView();bar.hidden=false;bar.innerHTML=`<button class="btn main" id="submit" type="button" ${S.busy?'disabled':''}>${S.busy?'Sending…':'Send request'}</button>`}
   else if(S.tab==='mine') h+=mineView();
+  else if(S.tab==='team') h+=teamView();
   else h+=todoView();
   app.innerHTML=h;
   bindMain();
@@ -321,11 +324,23 @@ function todoView(){
     } else h+=hfSection('Approved, to buy',rs.filter(r=>r.status==='approved').sort(byPrio));
     h+=hfSection('Purchased, waiting for branch',rs.filter(r=>r.status==='purchased'&&mineOrFree(r)).sort(byPrio));
     h+=hfSection('With Ops Manager / Head Coach',rs.filter(r=>r.status==='waiting approval').sort(byPrio));
-    if(S.data.team) h+=hfSection('Handled by others',rs.filter(r=>OPEN.includes(r.status)&&r.assignee&&!r.assignedToMe).sort(byPrio));
   } else {
     h+=hfSection('Waiting for your approval',rs.filter(r=>r.status==='waiting approval'&&r.can.approve).sort(byPrio));
   }
   return (h||`<div class="empty">🎉 Nothing is waiting on you.</div>`)+refreshBtn();
+}
+function teamView(){
+  const rs=(S.data.requests||[]).filter(r=>OPEN.includes(r.status));
+  const order={'new':0,'waiting approval':1,'approved':2,'purchased':3};
+  const srt=(a,b)=>(order[a.status]-order[b.status])||byPrio(a,b);
+  const names=[...new Set(rs.filter(r=>r.assignee&&!r.assignedToMe).map(r=>r.assignee))];
+  (S.data.purchasers||[]).forEach(n=>{if(n!==S.data.me.name&&!names.includes(n))names.push(n)});
+  const mine=rs.filter(r=>r.assignedToMe).sort(srt), free=rs.filter(r=>!r.assignee).sort(srt);
+  let h=`<div class="card" style="gap:6px"><b>Who is handling what</b><div class="hint">🙋 You: <b>${mine.length}</b>${names.map(n=>` · 👤 ${hfEsc(n)}: <b>${rs.filter(r=>r.assignee===n&&!r.assignedToMe).length}</b>`).join('')} · Not assigned: <b>${free.length}</b></div></div>`;
+  h+=hfSection('🙋 You are handling',mine)||`<div class="sec">🙋 You are handling (0)</div><div class="empty" style="padding:10px">Nothing right now.</div>`;
+  names.forEach(n=>{const l=rs.filter(r=>r.assignee===n&&!r.assignedToMe).sort(srt);h+=hfSection('👤 '+n+' is handling',l)||`<div class="sec">👤 ${hfEsc(n)} is handling (0)</div><div class="empty" style="padding:10px">Nothing right now.</div>`});
+  h+=hfSection('Not assigned yet',free);
+  return h+refreshBtn();
 }
 function refreshBtn(){return `<button class="btn block" id="refresh" type="button" ${S.busy?'disabled':''}>${S.busy?'Loading…':'↻ Refresh'}</button>`}
 

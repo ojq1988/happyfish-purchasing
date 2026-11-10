@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='14';
+var HF_VERSION='15';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -105,6 +105,23 @@ textarea.i{min-height:76px;resize:vertical}
 .tag{font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--ink);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tag.urg{background:var(--bad);color:#fff}
 .tag.for{background:#f5c518;color:#4a3500}
+.tag.msg{background:#e5484d;color:#fff;animation:hfpulse 1.6s ease-in-out 3}
+@keyframes hfpulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,#e5484d 25%,transparent)}}
+@media (prefers-reduced-motion:reduce){.tag.msg{animation:none}}
+.req.hasmsg{border-color:#e5484d}
+.msgban{background:color-mix(in srgb,#e5484d 9%,var(--card));border:1px solid color-mix(in srgb,#e5484d 35%,transparent);border-radius:16px;padding:12px 14px;display:grid;gap:8px}
+.mbh{display:flex;align-items:center;gap:8px;color:#c62f34;font-size:15px}
+.mbl{display:grid;gap:6px}
+.mbi{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;text-align:left;border:0;background:var(--card);border-radius:11px;padding:9px 12px;cursor:pointer;color:var(--ink);font:inherit}
+.mbi span:first-child{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbi small{grid-column:1;color:var(--muted);font-size:12.5px}
+.mbc{grid-column:2;grid-row:1/span 2;background:#e5484d;color:#fff;border-radius:999px;min-width:24px;text-align:center;font-weight:700;font-size:13px;padding:2px 7px}
+.thread{display:grid;gap:8px;padding:10px;border-radius:12px;background:var(--bg)}
+.thread .th{font-weight:700;font-size:14px}
+.bub{max-width:85%;padding:8px 11px;border-radius:14px 14px 14px 4px;background:var(--card);font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.bub.me{justify-self:end;border-radius:14px 14px 4px 14px;background:color-mix(in srgb,var(--accent) 14%,var(--card))}
+.bub.note{border-left:3px solid var(--c-approved)}
+.bub .bn{font-size:11.5px;color:var(--muted);margin-bottom:2px;white-space:normal}
 .tag.late{background:color-mix(in srgb,var(--bad) 14%,var(--card));color:var(--bad)}
 .tag.buyer{background:color-mix(in srgb,var(--c-wait) 13%,var(--card));color:var(--c-wait)}
 .tag.buyer.me{background:color-mix(in srgb,var(--c-approved) 14%,var(--card));color:var(--c-approved)}
@@ -164,6 +181,13 @@ async function hfCall(body){
   try{ const j=JSON.parse(txt); HF_STEP='reply understood'; return j; }
   catch(e){ throw new Error(/did not return anything|completed but/i.test(txt) ? 'Code V: the Google script is running an old version. Update the deployment to a New version.' : /sign in|accounts\.google/i.test(txt) ? 'Code A: the Google script needs access set to "Anyone".' : 'Code J: the Google script sent back something unexpected.'); }
 }
+/** Clears the "new message" marker once a task is opened (quietly, no toast). */
+function hfSeen(ref){
+  const r=(S.data.requests||[]).find(x=>x.ref===ref);
+  if(!r||!r.unread) return;
+  r.unread=0; hfRender();
+  hfCall({action:'act',ref,what:'seen'}).catch(()=>{});
+}
 async function hfRun(body, okMsg){
   if(S.busy) return; S.busy=true; hfRender();
   try{
@@ -218,8 +242,9 @@ function render_(){
     ${showTodo?`<button type="button" role="tab" data-tab="todo" class="${S.tab==='todo'?'on':''}"><span class="ti">📥</span>To do${todoCount?`<span class="badge">${todoCount}</span>`:''}</button>`:''}
     ${d.team&&d.me.purchaser?`<button type="button" role="tab" data-tab="team" class="${S.tab==='team'?'on':''}"><span class="ti">👥</span>Team</button>`:''}
   </nav>`;
+  h+=msgBanner();
   if(S.tab==='new'){h+=formView();bar.hidden=false;bar.innerHTML=`<button class="btn main" id="submit" type="button" ${S.busy?'disabled':''}>${S.busy?'Sending…':'Send request'}</button>`}
-  else if(S.tab==='mine') h+=mineView();
+  if(S.tab==='new'){} else if(S.tab==='mine') h+=mineView();
   else if(S.tab==='team') h+=teamView();
   else h+=todoView();
   app.innerHTML=h;
@@ -228,6 +253,12 @@ function render_(){
 function hfHead(){
   const me=S.data&&S.data.me;
   return `<div class="head"><div class="logo" aria-hidden="true">🐟</div><div><h1>Happy Fish Purchasing</h1><div class="sub">${me?hfEsc(me.name)+' · '+hfEsc(me.purchaser?'Purchaser':me.role):'Purchase requests for all branches'}</div></div></div>`;
+}
+function msgBanner(){
+  const un=(S.data.requests||[]).filter(r=>r.unread>0);
+  if(!un.length) return '';
+  const n=un.reduce((a,r)=>a+r.unread,0);
+  return `<div class="msgban"><div class="mbh"><span class="bell">💬</span><b>${n} new message${n>1?'s':''}</b></div><div class="mbl">${un.slice(0,6).map(r=>`<button type="button" class="mbi" data-openmsg="${hfEsc(r.ref)}"><span>${hfEsc(r.items.length>1?r.items.map(x=>x.n).join(', '):r.item).slice(0,40)}</span><small>${hfEsc((r.msgs[r.msgs.length-1]||{}).name||'')} · ${hfEsc(r.ref)}</small><span class="mbc">${r.unread}</span></button>`).join('')}</div></div>`;
 }
 function homeBanner(){
   if(S.home!=='missed') return '';
@@ -285,9 +316,9 @@ function reqCard(r){
   const open=S.open===r.ref;
   const st=(STATUS[r.status]||['closed'])[0], live=OPEN.includes(r.status);
   const late=live&&r.status!=='purchased'&&r.need&&r.need<hfToday();
-  let h=`<div class="req s-${st} ${r.urgent&&live?'urgent':''} ${open?'open':''}" data-ref="${hfEsc(r.ref)}">
+  let h=`<div class="req s-${st} ${r.urgent&&live?'urgent':''} ${open?'open':''} ${r.unread?'hasmsg':''}" data-ref="${hfEsc(r.ref)}">
     <div class="top"><div class="it">${r.items.length>1?`🧺 ${r.items.length} items${r.status==='approved'&&r.items.some(x=>x.done)?` <span class="meta">· ${r.items.filter(x=>x.done&&!x.no).length} of ${r.items.filter(x=>!x.no).length} bought</span>`:''}<div class="meta" style="font-weight:400">${hfEsc(r.items.map(x=>x.n).join(', ').slice(0,90))}</div>`:`${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}`}</div>${hfPill(r)}</div>
-    <div class="tags">${r.urgent&&live?'<span class="tag urg">🔥 Urgent</span>':''}${r.forName?`<span class="tag for">👑 For ${hfEsc(r.forName)}</span>`:''}<span class="tag">📍 ${hfEsc(r.branch)}</span>${r.mine?'':`<span class="tag">🙂 ${hfEsc(r.requester)}</span>`}${r.needText?`<span class="tag ${late?'late':''}">📅 ${late?'Late · ':''}${hfEsc(r.needText)}</span>`:''}${S.data.team&&S.data.me.purchaser&&live?(r.assignee?`<span class="tag buyer ${r.assignedToMe?'me':''}">🛍️ ${hfWho(r)}</span>`:'<span class="tag buyer none">🛍️ Not assigned</span>'):''}</div>`;
+    <div class="tags">${r.unread?`<span class="tag msg">💬 ${r.unread} new message${r.unread>1?'s':''}</span>`:''}${r.urgent&&live?'<span class="tag urg">🔥 Urgent</span>':''}${r.forName?`<span class="tag for">👑 For ${hfEsc(r.forName)}</span>`:''}<span class="tag">📍 ${hfEsc(r.branch)}</span>${r.mine?'':`<span class="tag">🙂 ${hfEsc(r.requester)}</span>`}${r.needText?`<span class="tag ${late?'late':''}">📅 ${late?'Late · ':''}${hfEsc(r.needText)}</span>`:''}${S.data.team&&S.data.me.purchaser&&live?(r.assignee?`<span class="tag buyer ${r.assignedToMe?'me':''}">🛍️ ${hfWho(r)}</span>`:'<span class="tag buyer none">🛍️ Not assigned</span>'):''}</div>`;
   if(open) h+=hfDetail(r);
   return h+'</div>';
 }
@@ -316,7 +347,7 @@ function hfDetail(r){
     ${r.details?`<dt>Details</dt><dd>${hfEsc(r.details)}</dd>`:''}
     ${r.links.length?`<dt>Links</dt><dd>${r.links.map(l=>`<a href="${hfEsc(l)}" data-link="${hfEsc(l)}">${hfEsc(l.length>48?l.slice(0,46)+'…':l)}</a>`).join('<br>')}</dd>`:''}
     ${r.files?`<dt>Photos</dt><dd>${r.files} attached</dd>`:''}
-  </dl>${r.notes.length?`<div class="notes">${r.notes.map(hfEsc).join('\n')}</div>`:''}`;
+  </dl>${(r.msgs||[]).length?`<div class="thread"><div class="th">💬 Messages</div>${r.msgs.map(m=>`<div class="bub ${m.mine?'me':''} ${m.note?'note':''}"><div class="bn">${m.mine?'You':hfEsc(m.name)}${m.note?' · update':''} · ${hfEsc(m.when)}</div>${hfEsc(m.text)}</div>`).join('')}</div>`:''}${r.notes.length?`<div class="notes">${r.notes.map(hfEsc).join('\n')}</div>`:''}`;
   if(p){
     const label={reject:'Reason (the requester will see it)',note:'Update for the requester, e.g. supplier, price, ETA',message:'Your message'}[p.what];
     h+=`<label class="f">${label}<textarea class="i" id="ptext">${hfEsc(p.text||'')}</textarea></label>
@@ -397,7 +428,13 @@ function bindMain(){
   document.querySelectorAll('.req').forEach(el=>el.addEventListener('click',e=>{
     if(e.target.closest('[data-stop]')) return;
     S.open = S.open===el.dataset.ref?null:el.dataset.ref; S.panel=null; hfRender();
+    if(S.open) hfSeen(S.open);
   }));
+  document.querySelectorAll('[data-openmsg]').forEach(b=>b.onclick=()=>{
+    const ref=b.dataset.openmsg, r=(S.data.requests||[]).find(x=>x.ref===ref);
+    if(r){ if(S.tab==='new') S.tab=r.mine?'mine':'todo'; S.open=ref; S.panel=null; hfRender(); hfSeen(ref);
+      const el=document.querySelector(`.req[data-ref="${ref}"]`); if(el) el.scrollIntoView({block:'start',behavior:'smooth'}); }
+  });
   document.querySelectorAll('[data-link]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();try{tg.openLink(a.dataset.link)}catch(_){window.open(a.dataset.link)}}));
   document.querySelectorAll('[data-tick]').forEach(b=>b.onclick=()=>hfRun({action:'act',ref:S.open,what:'tick',text:b.dataset.tick}));
   document.querySelectorAll('[data-dec]').forEach(el=>{el.addEventListener('click',e=>e.stopPropagation());el.onchange=()=>{if(S.dec)S.dec.v[Number(el.dataset.dec)]=el.value}});

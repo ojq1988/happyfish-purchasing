@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='15';
+var HF_VERSION='16';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -122,6 +122,7 @@ textarea.i{min-height:76px;resize:vertical}
 .bub.me{justify-self:end;border-radius:14px 14px 4px 14px;background:color-mix(in srgb,var(--accent) 14%,var(--card))}
 .bub.note{border-left:3px solid var(--c-approved)}
 .bub .bn{font-size:11.5px;color:var(--muted);margin-bottom:2px;white-space:normal}
+.thread .reply{justify-self:start;padding:9px 16px;background:linear-gradient(120deg,var(--sea1),var(--sea2));color:#fff;border:0}
 .tag.late{background:color-mix(in srgb,var(--bad) 14%,var(--card));color:var(--bad)}
 .tag.buyer{background:color-mix(in srgb,var(--c-wait) 13%,var(--card));color:var(--c-wait)}
 .tag.buyer.me{background:color-mix(in srgb,var(--c-approved) 14%,var(--card));color:var(--c-approved)}
@@ -347,7 +348,7 @@ function hfDetail(r){
     ${r.details?`<dt>Details</dt><dd>${hfEsc(r.details)}</dd>`:''}
     ${r.links.length?`<dt>Links</dt><dd>${r.links.map(l=>`<a href="${hfEsc(l)}" data-link="${hfEsc(l)}">${hfEsc(l.length>48?l.slice(0,46)+'…':l)}</a>`).join('<br>')}</dd>`:''}
     ${r.files?`<dt>Photos</dt><dd>${r.files} attached</dd>`:''}
-  </dl>${(r.msgs||[]).length?`<div class="thread"><div class="th">💬 Messages</div>${r.msgs.map(m=>`<div class="bub ${m.mine?'me':''} ${m.note?'note':''}"><div class="bn">${m.mine?'You':hfEsc(m.name)}${m.note?' · update':''} · ${hfEsc(m.when)}</div>${hfEsc(m.text)}</div>`).join('')}</div>`:''}${r.notes.length?`<div class="notes">${r.notes.map(hfEsc).join('\n')}</div>`:''}`;
+  </dl>${(r.msgs||[]).length?`<div class="thread"><div class="th">💬 Messages</div>${r.msgs.map(m=>`<div class="bub ${m.mine?'me':''} ${m.note?'note':''}"><div class="bn">${m.mine?'You':hfEsc(m.name)}${m.note?' · update':''} · ${hfEsc(m.when)}</div>${hfEsc(m.text)}</div>`).join('')}${r.can.message&&!(S.panel&&S.panel.what==='message')?'<button class="btn reply" data-act="message" data-panel="1" data-stop type="button">↩️ Reply</button>':''}</div>`:''}${r.notes.length?`<div class="notes">${r.notes.map(hfEsc).join('\n')}</div>`:''}`;
   if(p){
     const label={reject:'Reason (the requester will see it)',note:'Update for the requester, e.g. supplier, price, ETA',message:'Your message'}[p.what];
     h+=`<label class="f">${label}<textarea class="i" id="ptext">${hfEsc(p.text||'')}</textarea></label>

@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='20';
+var HF_VERSION='21';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -32,7 +32,7 @@ window.HF_STALL=setTimeout(function(){
   --line:color-mix(in srgb,var(--muted) 22%,transparent);
   --bad:#e5484d; --warn:#e8890c; --good:#1fa463;
   /* one colour per stage, used for card stripes, pills and section dots */
-  --c-new:#f08c00; --c-wait:#8b5cf6; --c-approved:#0b8fd6; --c-purchased:#1fa463; --c-received:#0fa3a3; --c-closed:#8a979e; --c-hold:#b7791f;
+  --c-new:#f08c00; --c-wait:#8b5cf6; --c-approved:#0b8fd6; --c-purchased:#1fa463; --c-received:#0fa3a3; --c-closed:#8a979e; --c-hold:#b7791f; --c-branch:#0e7490;
   --sea1:#0b8fd6; --sea2:#14b8c4;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -95,7 +95,8 @@ textarea.i{min-height:76px;resize:vertical}
 .sec .n{margin-left:2px;font-size:12.5px;font-weight:700;color:var(--sc,var(--accent));background:color-mix(in srgb,var(--sc,var(--accent)) 14%,var(--card));padding:1px 9px;border-radius:999px}
 .req{--sc:var(--c-approved);background:var(--card);border-radius:16px;padding:14px 16px 14px 20px;display:grid;gap:9px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 2px 10px -4px rgba(0,0,0,.14);border:1px solid color-mix(in srgb,var(--sc) 18%,transparent)}
 .req::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--sc)}
-.req.s-new{--sc:var(--c-new)} .req.s-wait{--sc:var(--c-wait)} .req.s-approved{--sc:var(--c-approved)} .req.s-purchased{--sc:var(--c-purchased)} .req.s-received{--sc:var(--c-received)} .req.s-rejected,.req.s-cancelled{--sc:var(--c-closed)}
+.req.s-new{--sc:var(--c-new)} .req.s-wait{--sc:var(--c-wait)} .req.s-approved{--sc:var(--c-approved)} .req.s-purchased{--sc:var(--c-purchased)} .req.s-received{--sc:var(--c-received)} .req.s-rejected,.req.s-cancelled{--sc:var(--c-closed)} .req.s-branch{--sc:var(--c-branch)}
+.irow.bri .iname{color:var(--c-branch)} .who.brw{color:var(--c-branch);font-weight:650}
 .req.urgent{background:linear-gradient(90deg,color-mix(in srgb,var(--bad) 7%,var(--card)),var(--card) 60%)}
 .req.open{box-shadow:0 8px 22px -8px color-mix(in srgb,var(--sc) 55%,transparent)}
 .req .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
@@ -119,6 +120,7 @@ textarea.i{min-height:76px;resize:vertical}
 .holdbox{background:#fdf0d5;color:#5c3d06;border:1px dashed #d9a441;border-radius:12px;padding:10px 12px;font-size:14.5px}
 .holdbox .meta{color:#8a5a0b;font-size:12.5px;margin-top:2px}
 .btn.hold{background:#fdf0d5;color:#8a5a0b}
+.btn.branch{background:color-mix(in srgb,var(--c-branch) 13%,var(--card));color:var(--c-branch)}
 .tag.msg{background:#e5484d;color:#fff;animation:hfpulse 1.6s ease-in-out 3}
 @keyframes hfpulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,#e5484d 25%,transparent)}}
 @media (prefers-reduced-motion:reduce){.tag.msg{animation:none}}
@@ -223,7 +225,7 @@ async function hfRun(body, okMsg){
 /* ---------- views ---------- */
 const STATUS = {
   'new':['new','🆕 To approve'], 'waiting approval':['wait','⏳ With approver'], 'approved':['approved','🛒 To buy'],
-  'purchased':['purchased','✅ Purchased'], 'received':['purchased','✅ Purchased'], 'rejected':['rejected','❌ Not approved'], 'cancelled':['cancelled','🚫 Cancelled']
+  'purchased':['purchased','✅ Purchased'], 'received':['purchased','✅ Purchased'], 'rejected':['rejected','❌ Not approved'], 'cancelled':['cancelled','🚫 Cancelled'], 'branch buys':['branch','🏫 Branch buys']
 };
 const OPEN = ['new','waiting approval','approved'];
 const DONE = ['purchased','received'];
@@ -360,11 +362,11 @@ function hfDetail(r){
   if(rv&&(!S.dec||S.dec.ref!==r.ref)) S.dec={ref:r.ref,v:rv.current.slice()};
   const mixedCat=new Set(r.items.map(x=>x.c).filter(Boolean)).size>1;
   const ilist=r.items.length>1?`<div class="ilist">${r.items.map((it,i)=>{
-    const mark=it.no?'<span>❌</span>':it.held?'<span>⏸️</span>':(it.canTick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`);
+    const mark=it.branch?'<span>🏫</span>':it.no?'<span>❌</span>':it.held?'<span>⏸️</span>':(it.canTick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`);
     const right=rv?`<select class="dec" data-dec="${i}" aria-label="Decision for ${hfEsc(it.n)}"><option value="">Choose…</option>${rv.options.map(o=>`<option value="${hfEsc(o.code)}" ${S.dec.v[i]===o.code?'selected':''}>${hfEsc(o.label)}</option>`).join('')}</select>`
-      :(it.no?'<span class="who">not approved</span>':it.held?'<span class="who heldw">on hold</span>':(it.buyer?`<span class="who">👤 ${it.mine?'You':hfEsc(String(it.buyer).split(' ')[0])}</span>`:''));
-    return `<div class="irow ${it.done?'done':''} ${it.no?'no':''} ${it.held?'heldi':''}">${rv?`<span>${it.no?'❌':it.held?'⏸️':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}${mixedCat&&it.c?`<span class="icat">${hfEsc(it.c)}</span>`:''}</span>${right}</div>`;
-  }).join('')}${rv?`<div class="acts"><button class="btn good" id="savedec" type="button" ${S.busy?'disabled':''}>✔️ ${rv.after?'Save changes':'Save decisions'}</button>${rv.after?'<button class="btn" id="closedec" type="button">Back</button>':''}</div><div class="hint">${S.data.team?'Choose who buys each item, ⏸️ to hold it for now, or ❌ if it is not approved.':'Choose ✅, ⏸️ hold or ❌ for each item.'} The requester is told which items were approved.</div>`:''}${c.tick&&!rv?'<div class="hint">Tick each item when you buy it. When every approved item is ticked, the request is marked purchased.</div>':''}</div>`:'';
+      :(it.branch?'<span class="who brw">branch buys</span>':it.no?'<span class="who">not approved</span>':it.held?'<span class="who heldw">on hold</span>':(it.buyer?`<span class="who">👤 ${it.mine?'You':hfEsc(String(it.buyer).split(' ')[0])}</span>`:''));
+    return `<div class="irow ${it.done?'done':''} ${it.no&&!it.branch?'no':''} ${it.branch?'bri':''} ${it.held?'heldi':''}">${rv?`<span>${it.branch?'🏫':it.no?'❌':it.held?'⏸️':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}${mixedCat&&it.c?`<span class="icat">${hfEsc(it.c)}</span>`:''}</span>${right}</div>`;
+  }).join('')}${rv?`<div class="acts"><button class="btn good" id="savedec" type="button" ${S.busy?'disabled':''}>✔️ ${rv.after?'Save changes':'Save decisions'}</button>${rv.after?'<button class="btn" id="closedec" type="button">Back</button>':''}</div><div class="hint">${S.data.team?'Choose who buys each item, ⏸️ to hold it for now, 🏫 if the branch should buy it, or ❌ if it is not approved.':'Choose ✅, ⏸️ hold, 🏫 branch buys or ❌ for each item.'} The requester is told which items were approved.</div>`:''}${c.tick&&!rv?'<div class="hint">Tick each item when you buy it. When every approved item is ticked, the request is marked purchased.</div>':''}</div>`:'';
   let h=`<div class="det" data-stop="1">${ilist}<dl>
     <dt>Request no.</dt><dd class="ref">${hfEsc(r.ref)}</dd>
     <dt>Category</dt><dd>${hfEsc(r.category)}</dd>
@@ -381,9 +383,9 @@ function hfDetail(r){
     ${r.files?`<dt>Photos</dt><dd>${r.files} attached</dd>`:''}
   </dl>${r.hold?`<div class="holdbox">⏸️ <b>On hold</b>${r.hold.reason?': '+hfEsc(r.hold.reason):''}<div class="meta">${hfEsc(r.hold.by)} · ${hfEsc(r.hold.when)}</div></div>`:''}${(r.msgs||[]).length?`<div class="thread"><div class="th">💬 Messages</div>${r.msgs.map(m=>`<div class="bub ${m.mine?'me':''} ${m.note?'note':''} ${m.status?'stat':''}"><div class="bn">${m.mine?'You':hfEsc(m.name)}${m.note?' · update':m.status?' · status':''} · ${hfEsc(m.when)}</div>${hfEsc(m.text)}</div>`).join('')}${r.can.message&&!(S.panel&&S.panel.what==='message')?'<button class="btn reply" data-act="message" data-panel="1" data-stop type="button">↩️ Reply</button>':''}</div>`:''}${r.notes.length?`<div class="notes">${r.notes.map(hfEsc).join('\n')}</div>`:''}`;
   if(p){
-    const label={hold:'Why is it on hold? (optional, the requester will see it)',reject:'Reason (the requester will see it)',note:'Update for the requester, e.g. supplier, price, ETA',message:'Your message'}[p.what];
+    const label={branch:'Note for the requester (optional), e.g. why, or where they can buy it',hold:'Why is it on hold? (optional, the requester will see it)',reject:'Reason (the requester will see it)',note:'Update for the requester, e.g. supplier, price, ETA',message:'Your message'}[p.what];
     h+=`<label class="f">${label}<textarea class="i" id="ptext">${hfEsc(p.text||'')}</textarea></label>
-      <div class="acts"><button class="btn ${p.what==='reject'?'bad':'main'}" data-act="${p.what}" data-send="1" type="button" ${S.busy?'disabled':''}>${p.what==='reject'?'Not approved':p.what==='note'?'Save note':p.what==='hold'?'⏸️ Put on hold':'Send'}</button><button class="btn" data-cancelpanel="1" type="button">Back</button></div>`;
+      <div class="acts"><button class="btn ${p.what==='reject'?'bad':p.what==='branch'?'branch':'main'}" data-act="${p.what}" data-send="1" type="button" ${S.busy?'disabled':''}>${p.what==='reject'?'Not approved':p.what==='note'?'Save note':p.what==='hold'?'⏸️ Put on hold':p.what==='branch'?'🏫 Ask the branch to buy':'Send'}</button><button class="btn" data-cancelpanel="1" type="button">Back</button></div>`;
   } else {
     const b=[];
     if(c.resume) b.push(`<button class="btn main" data-act="resume" type="button">▶️ Resume</button>`);
@@ -395,12 +397,13 @@ function hfDetail(r){
     (c.give||[]).forEach(p=>b.push(`<button class="btn" data-act="give" data-target="${hfEsc(p.id)}" type="button">${p.back?'↩️ Hand back to ':'👉 Give to '}${hfEsc(String(p.name).split(' ')[0])}</button>`));
     if(c.reject) b.push(`<button class="btn bad" data-act="reject" data-panel="1" type="button">❌ Not approved</button>`);
     if(c.purchased) b.push(`<button class="btn good" data-act="purchased" type="button">🛒 ${r.items.length>1?((r.assignees||[]).length>1?'All my items bought':'All bought'):'Mark purchased'}</button>`);
-    if(r.review&&r.review.after&&S.reviewOn!==r.ref) b.push(`<button class="btn" id="opendec" type="button">${r.heldItems?'⏸️ Change held items / who buys':'📝 Change items: who buys, hold, not approved'}</button>`);
+    if(r.review&&r.review.after&&S.reviewOn!==r.ref) b.push(`<button class="btn" id="opendec" type="button">${r.heldItems?'⏸️ Change held items / who buys':'📝 Change items: who buys, hold, branch, no'}</button>`);
     if(c.received) b.push(`<button class="btn good" data-act="received" type="button">📦 Received</button>`);
     if(c.note) b.push(`<button class="btn" data-act="note" data-panel="1" type="button">📝 Add note</button>`);
     if(c.message) b.push(`<button class="btn" data-act="message" data-panel="1" type="button">💬 ${r.mine&&!S.data.me.purchaser?'Message purchaser':'Message '+hfEsc(String(r.requester).split(' ')[0])}</button>`);
     if(c.photos) b.push(`<button class="btn" data-act="photos" type="button">📷 See photos in chat</button>`);
     if(c.hold) b.push(`<button class="btn hold" data-act="hold" data-panel="1" type="button">⏸️ Put on hold</button>`);
+    if(c.branch) b.push(`<button class="btn branch" data-act="branch" data-panel="1" type="button">🏫 Branch buys it</button>`);
     if(c.undo) b.push(`<button class="btn" data-act="undo" type="button">↩️ ${hfEsc(r.undoLabel)}</button>`);
     if(c.cancel) b.push(`<button class="btn bad" data-act="cancel" type="button">🚫 Cancel request</button>`);
     if(b.length) h+=`<div class="acts">${b.join('')}</div>`;
@@ -411,14 +414,14 @@ function hfToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMon
 function hfSection(title, list, force){
   if(!list.length) return '';
   const st=(STATUS[list[0].status]||['closed'])[0], same=list.every(r=>r.status===list[0].status);
-  const col=force||({new:'--c-new',wait:'--c-wait',approved:'--c-approved',purchased:'--c-purchased',received:'--c-received'}[st]||'--c-closed');
+  const col=force||({new:'--c-new',wait:'--c-wait',approved:'--c-approved',purchased:'--c-purchased',received:'--c-received',branch:'--c-branch'}[st]||'--c-closed');
   return `<div class="sec" style="--sc:var(${force||same?col:'--accent'})">${hfEsc(title)}<span class="n">${list.length}</span></div>`+list.map(reqCard).join('');
 }
 function byPrio(a,b){if(a.urgent!==b.urgent)return a.urgent?-1:1;const na=a.need||'9999',nb=b.need||'9999';return na<nb?-1:na>nb?1:(a.ref<b.ref?-1:1)}
 function mineView(){
   const rs=(S.data.requests||[]).filter(r=>r.mine);
   if(!rs.length) return `<div class="empty">You haven't sent any requests yet.<br>Tap <b>🛒 Request</b> to start.</div>`;
-  return hfSection('Open',rs.filter(r=>OPEN.includes(r.status)).sort(byPrio))+hfSection('Purchased',rs.filter(r=>DONE.includes(r.status)).slice(0,20))+hfSection('Not approved / cancelled',rs.filter(r=>r.status==='rejected'||r.status==='cancelled').slice(0,10))+refreshBtn();
+  return hfSection('Open',rs.filter(r=>OPEN.includes(r.status)).sort(byPrio))+hfSection('🏫 Please buy at your branch',rs.filter(r=>r.status==='branch buys').slice(0,10))+hfSection('Purchased',rs.filter(r=>DONE.includes(r.status)).slice(0,20))+hfSection('Not approved / cancelled',rs.filter(r=>r.status==='rejected'||r.status==='cancelled').slice(0,10))+refreshBtn();
 }
 /** Which tab a request lives in, so tapping a new-message alert jumps to the right place. */
 function hfTabOf(r){
@@ -447,12 +450,13 @@ function heldView(){
 }
 function boughtView(){
   const rs=(S.data.requests||[]).filter(r=>DONE.includes(r.status)).sort((a,b)=>(b.purchasedKey||'').localeCompare(a.purchasedKey||''));
-  if(!rs.length) return `<div class="empty">Nothing purchased in the last 45 days.</div>`+refreshBtn();
+  const br=hfSection('🏫 Passed to the branch',(S.data.requests||[]).filter(r=>r.status==='branch buys').slice(0,20));
+  if(!rs.length) return `<div class="empty">Nothing purchased in the last 45 days.</div>`+br+refreshBtn();
   const wk=new Date(Date.now()-6*864e5), wkKey=wk.getFullYear()+'-'+String(wk.getMonth()+1).padStart(2,'0')+'-'+String(wk.getDate()).padStart(2,'0');
   const today=hfToday();
   return hfSection('Today',rs.filter(r=>(r.purchasedKey||'').slice(0,10)===today),'--c-purchased')
     +hfSection('This week',rs.filter(r=>{const k=(r.purchasedKey||'').slice(0,10);return k<today&&k>=wkKey}),'--c-purchased')
-    +hfSection('Earlier',rs.filter(r=>(r.purchasedKey||'').slice(0,10)<wkKey),'--c-purchased')+refreshBtn();
+    +hfSection('Earlier',rs.filter(r=>(r.purchasedKey||'').slice(0,10)<wkKey),'--c-purchased')+br+refreshBtn();
 }
 function todoView(){
   const all=S.data.requests||[], me=S.data.me, rs=all.filter(r=>!r.hold);
@@ -519,7 +523,7 @@ function bindMain(){
     const ref=S.open, what=b.dataset.act;
     if(b.dataset.panel){S.panel={ref,what,text:''};hfRender();return}
     const text=b.dataset.target?b.dataset.target:(b.dataset.send?(S.panel&&S.panel.text||'').trim():'');
-    if(b.dataset.send&&what!=='reject'&&what!=='hold'&&!text){hfToast('Type something first.',true);return}
+    if(b.dataset.send&&what!=='reject'&&what!=='hold'&&what!=='branch'&&!text){hfToast('Type something first.',true);return}
     const go=()=>hfRun({action:'act',ref,what,text}).then(d=>{if(d&&!d.error){S.panel=null;hfRender()}});
     if(what==='cancel'){confirmThen('Cancel this request?',go)}else if(what==='undo'){confirmThen(r0Label()+'?',go)}else go();
   });

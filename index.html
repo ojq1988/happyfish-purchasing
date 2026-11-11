@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='17';
+var HF_VERSION='18';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -105,6 +105,12 @@ textarea.i{min-height:76px;resize:vertical}
 .tag{font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--ink);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tag.urg{background:var(--bad);color:#fff}
 .tag.for{background:#f5c518;color:#4a3500}
+.newbtn{position:relative;z-index:1;flex:none;display:flex;flex-direction:column;align-items:center;gap:0;border:0;border-radius:14px;padding:6px 12px;background:rgba(255,255,255,.22);color:#fff;font-size:20px;line-height:1.1;cursor:pointer}
+.newbtn span{font-size:11.5px;font-weight:700}
+.newbtn.on{background:#fff;color:var(--sea1)}
+.newhead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:16px;margin:2px 2px -4px}
+.newhead .btn{width:auto;padding:7px 14px}
+.badge.hb{background:#b7791f}
 .tag.hold{background:#fdf0d5;color:#8a5a0b;border:1px dashed #d9a441}
 .req.held{--sc:var(--c-hold);background:repeating-linear-gradient(135deg,var(--card) 0 14px,color-mix(in srgb,#d9a441 7%,var(--card)) 14px 28px)}
 .req.held .pill{opacity:.65}
@@ -160,7 +166,7 @@ textarea.i{min-height:76px;resize:vertical}
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
 const API = new URLSearchParams(location.search).get('api') || '';
-const S = { data:null, tab:'new', open:null, panel:null, busy:false,
+const S = { data:null, tab:'', open:null, panel:null, busy:false,
   form:{branch:'',items:[{n:'',q:'',c:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]},
   reg:{name:'',role:'',branch:''}, home:null };
 
@@ -213,9 +219,10 @@ async function hfRun(body, okMsg){
 /* ---------- views ---------- */
 const STATUS = {
   'new':['new','🆕 To approve'], 'waiting approval':['wait','⏳ With approver'], 'approved':['approved','🛒 To buy'],
-  'purchased':['purchased','✅ Purchased'], 'received':['received','📦 Received'], 'rejected':['rejected','❌ Not approved'], 'cancelled':['cancelled','🚫 Cancelled']
+  'purchased':['purchased','✅ Purchased'], 'received':['purchased','✅ Purchased'], 'rejected':['rejected','❌ Not approved'], 'cancelled':['cancelled','🚫 Cancelled']
 };
-const OPEN = ['new','waiting approval','approved','purchased'];
+const OPEN = ['new','waiting approval','approved'];
+const DONE = ['purchased','received'];
 function hfPill(r){const s=STATUS[r.status]||['',r.status];return `<span class="pill ${s[0]}">${hfEsc(s[1])}</span>`}
 
 function hfRender(){
@@ -238,28 +245,41 @@ function render_(){
   if(d.me.status==='pending'){app.innerHTML=hfHead()+`<div class="card"><h2>⏳ Waiting for approval</h2><p class="hint">Thanks, ${hfEsc(d.me.name)}. The purchaser has been asked to approve you. You'll get a Telegram message when it's done, then open this app again.</p><button class="btn" id="reload" type="button">Check again</button></div>`;document.getElementById('reload').onclick=()=>hfRun({action:'init'});return}
   if(d.me.status!=='active'){app.innerHTML=hfHead()+`<div class="card"><p>Your access isn't active. Please contact the purchaser.</p></div>`;return}
 
-  const showTodo = d.me.purchaser || d.me.approver;
-  if(S.tab==='todo' && !showTodo) S.tab='new';
-  if(S.tab==='team' && !(d.team&&d.me.purchaser)) S.tab='new';
-  const todoCount = (d.requests||[]).filter(r=>!r.hold&&(r.can.approve||r.can.purchased)).length;
-  const mineOpen = (d.requests||[]).filter(r=>r.mine&&r.can.received).length;
-  let h = hfHead() + homeBanner() + `<nav class="tabs" role="tablist">
-    <button type="button" role="tab" data-tab="new" class="${S.tab==='new'?'on':''}"><span class="ti">🛒</span>Request</button>
-    <button type="button" role="tab" data-tab="mine" class="${S.tab==='mine'?'on':''}"><span class="ti">📋</span>Mine${mineOpen?`<span class="badge">${mineOpen}</span>`:''}</button>
-    ${showTodo?`<button type="button" role="tab" data-tab="todo" class="${S.tab==='todo'?'on':''}"><span class="ti">📥</span>To do${todoCount?`<span class="badge">${todoCount}</span>`:''}</button>`:''}
-    ${d.team&&d.me.purchaser?`<button type="button" role="tab" data-tab="team" class="${S.tab==='team'?'on':''}"><span class="ti">👥</span>Team</button>`:''}
+  const P = d.me.purchaser, rsAll = d.requests||[];
+  const tabs = P ? ['tobuy','held','bought','new'] : (d.me.approver ? ['new','mine','todo'] : ['new','mine']);
+  if(tabs.indexOf(S.tab)<0) S.tab = P ? 'tobuy' : 'new';
+  let nav;
+  if(P){
+    const buyCount = rsAll.filter(r=>!r.hold&&(r.can.approve||r.can.purchased||(d.me.lead&&r.status==='approved'&&!r.assignee))).length;
+    const heldCount = rsAll.filter(r=>r.hold).length;
+    nav = `<nav class="tabs" role="tablist">
+    <button type="button" role="tab" data-tab="tobuy" class="${S.tab==='tobuy'?'on':''}"><span class="ti">🛒</span>To buy${buyCount?`<span class="badge">${buyCount}</span>`:''}</button>
+    <button type="button" role="tab" data-tab="held" class="${S.tab==='held'?'on':''}"><span class="ti">⏸️</span>On hold${heldCount?`<span class="badge hb">${heldCount}</span>`:''}</button>
+    <button type="button" role="tab" data-tab="bought" class="${S.tab==='bought'?'on':''}"><span class="ti">✅</span>Purchased</button>
   </nav>`;
+  } else {
+    const todoCount = rsAll.filter(r=>!r.hold&&r.can.approve).length;
+    nav = `<nav class="tabs" role="tablist">
+    <button type="button" role="tab" data-tab="new" class="${S.tab==='new'?'on':''}"><span class="ti">🛒</span>Request</button>
+    <button type="button" role="tab" data-tab="mine" class="${S.tab==='mine'?'on':''}"><span class="ti">📋</span>Mine</button>
+    ${d.me.approver?`<button type="button" role="tab" data-tab="todo" class="${S.tab==='todo'?'on':''}"><span class="ti">📥</span>To do${todoCount?`<span class="badge">${todoCount}</span>`:''}</button>`:''}
+  </nav>`;
+  }
+  let h = hfHead() + homeBanner() + nav;
   h+=msgBanner();
-  if(S.tab==='new'){h+=formView();bar.hidden=false;bar.innerHTML=`<button class="btn main" id="submit" type="button" ${S.busy?'disabled':''}>${S.busy?'Sending…':'Send request'}</button>`}
+  if(S.tab==='new'){ if(P) h+=`<div class="newhead"><b>➕ New request</b><button type="button" class="btn" data-tab="tobuy">← Back</button></div>`; h+=formView();bar.hidden=false;bar.innerHTML=`<button class="btn main" id="submit" type="button" ${S.busy?'disabled':''}>${S.busy?'Sending…':'Send request'}</button>`}
   if(S.tab==='new'){} else if(S.tab==='mine') h+=mineView();
-  else if(S.tab==='team') h+=teamView();
+  else if(S.tab==='tobuy') h+=buyView();
+  else if(S.tab==='held') h+=heldView();
+  else if(S.tab==='bought') h+=boughtView();
   else h+=todoView();
   app.innerHTML=h;
   bindMain();
 }
 function hfHead(){
   const me=S.data&&S.data.me;
-  return `<div class="head"><div class="logo" aria-hidden="true">🐟</div><div><h1>Happy Fish Purchasing</h1><div class="sub">${me?hfEsc(me.name)+' · '+hfEsc(me.purchaser?'Purchaser':me.role):'Purchase requests for all branches'}</div></div></div>`;
+  const nb=me&&me.purchaser&&me.status==='active'?`<button type="button" class="newbtn ${S.tab==='new'?'on':''}" data-tab="new" aria-label="New request">➕<span>New</span></button>`:'';
+  return `<div class="head"><div class="logo" aria-hidden="true">🐟</div><div style="flex:1;min-width:0"><h1>Happy Fish Purchasing</h1><div class="sub">${me?hfEsc(me.name)+' · '+hfEsc(me.purchaser?'Purchaser':me.role):'Purchase requests for all branches'}</div></div>${nb}</div>`;
 }
 function msgBanner(){
   const un=(S.data.requests||[]).filter(r=>r.unread>0);
@@ -393,7 +413,41 @@ function byPrio(a,b){if(a.urgent!==b.urgent)return a.urgent?-1:1;const na=a.need
 function mineView(){
   const rs=(S.data.requests||[]).filter(r=>r.mine);
   if(!rs.length) return `<div class="empty">You haven't sent any requests yet.<br>Tap <b>🛒 Request</b> to start.</div>`;
-  return hfSection('Open',rs.filter(r=>OPEN.includes(r.status)).sort(byPrio))+hfSection('Closed',rs.filter(r=>!OPEN.includes(r.status)).slice(0,20))+refreshBtn();
+  return hfSection('Open',rs.filter(r=>OPEN.includes(r.status)).sort(byPrio))+hfSection('Purchased',rs.filter(r=>DONE.includes(r.status)).slice(0,20))+hfSection('Not approved / cancelled',rs.filter(r=>r.status==='rejected'||r.status==='cancelled').slice(0,10))+refreshBtn();
+}
+/** Which tab a request lives in, so tapping a new-message alert jumps to the right place. */
+function hfTabOf(r){
+  if(!S.data.me.purchaser) return r.mine?'mine':'todo';
+  if(r.hold) return 'held';
+  return OPEN.includes(r.status)?'tobuy':'bought';
+}
+function buyView(){
+  const d=S.data, me=d.me, rs=(d.requests||[]).filter(r=>!r.hold&&OPEN.includes(r.status));
+  const lead=!d.team||me.lead;
+  let h='';
+  if(lead) h+=hfSection('🆕 Waiting for your approval',rs.filter(r=>r.status==='new').sort(byPrio));
+  if(d.team){
+    if(lead) h+=hfSection('👉 Approved, choose who buys',rs.filter(r=>r.status==='approved'&&!r.assignee).sort(byPrio));
+    h+=hfSection('🛒 To buy: mine',rs.filter(r=>r.status==='approved'&&r.assignedToMe).sort(byPrio));
+    (d.purchasers||[]).filter(n=>n!==me.name).forEach(n=>{
+      h+=hfSection('👤 '+n+' is buying',rs.filter(r=>r.status==='approved'&&(r.assignees||[]).includes(n)&&!r.assignedToMe).sort(byPrio),'--c-wait');
+    });
+  } else h+=hfSection('🛒 Approved, to buy',rs.filter(r=>r.status==='approved').sort(byPrio));
+  if(lead) h+=hfSection('⏳ Older requests with approvers',rs.filter(r=>r.status==='waiting approval').sort(byPrio));
+  return (h||`<div class="empty">🎉 Nothing to buy right now.</div>`)+refreshBtn();
+}
+function heldView(){
+  const rs=(S.data.requests||[]).filter(r=>r.hold).sort(byPrio);
+  return (rs.length?hfSection('⏸️ On hold',rs,'--c-hold'):`<div class="empty">Nothing is on hold.<br><span class="hint">Open a task in <b>🛒 To buy</b> and tap <b>⏸️ Put on hold</b> to park it here.</span></div>`)+refreshBtn();
+}
+function boughtView(){
+  const rs=(S.data.requests||[]).filter(r=>DONE.includes(r.status)).sort((a,b)=>(b.purchasedKey||'').localeCompare(a.purchasedKey||''));
+  if(!rs.length) return `<div class="empty">Nothing purchased in the last 45 days.</div>`+refreshBtn();
+  const wk=new Date(Date.now()-6*864e5), wkKey=wk.getFullYear()+'-'+String(wk.getMonth()+1).padStart(2,'0')+'-'+String(wk.getDate()).padStart(2,'0');
+  const today=hfToday();
+  return hfSection('Today',rs.filter(r=>(r.purchasedKey||'').slice(0,10)===today),'--c-purchased')
+    +hfSection('This week',rs.filter(r=>{const k=(r.purchasedKey||'').slice(0,10);return k<today&&k>=wkKey}),'--c-purchased')
+    +hfSection('Earlier',rs.filter(r=>(r.purchasedKey||'').slice(0,10)<wkKey),'--c-purchased')+refreshBtn();
 }
 function todoView(){
   const all=S.data.requests||[], me=S.data.me, rs=all.filter(r=>!r.hold);
@@ -442,7 +496,7 @@ function bindMain(){
   }));
   document.querySelectorAll('[data-openmsg]').forEach(b=>b.onclick=()=>{
     const ref=b.dataset.openmsg, r=(S.data.requests||[]).find(x=>x.ref===ref);
-    if(r){ if(S.tab==='new') S.tab=r.mine?'mine':'todo'; S.open=ref; S.panel=null; hfRender(); hfSeen(ref);
+    if(r){ S.tab=hfTabOf(r); S.open=ref; S.panel=null; hfRender(); hfSeen(ref);
       const el=document.querySelector(`.req[data-ref="${ref}"]`); if(el) el.scrollIntoView({block:'start',behavior:'smooth'}); }
   });
   document.querySelectorAll('[data-link]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();try{tg.openLink(a.dataset.link)}catch(_){window.open(a.dataset.link)}}));
@@ -499,7 +553,7 @@ function bindForm(){
     if(items.some(x=>!x.c)){hfToast('Please choose a category for each item.',true);return}
     if(f.needKey==='date'&&!f.need){hfToast('Please pick the date.',true);return}
     const d=await hfRun({action:'submit',branch:f.branch,forName:(f.forName||'').trim(),items,need:f.need,urgent:f.urgent,links:f.links,details:f.details,photos:f.photos});
-    if(d&&!d.error){S.form={branch:f.branch,forName:'',items:[{n:'',q:'',c:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab='mine';hfRender();window.scrollTo(0,0)}
+    if(d&&!d.error){S.form={branch:f.branch,forName:'',items:[{n:'',q:'',c:''}],need:'',needKey:'',urgent:false,links:'',details:'',photos:[]};S.tab=S.data.me.purchaser?'tobuy':'mine';hfRender();window.scrollTo(0,0)}
   };
 }
 function shrink(file){

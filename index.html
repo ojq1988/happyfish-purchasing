@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='21';
+var HF_VERSION='22';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -120,6 +120,7 @@ textarea.i{min-height:76px;resize:vertical}
 .holdbox{background:#fdf0d5;color:#5c3d06;border:1px dashed #d9a441;border-radius:12px;padding:10px 12px;font-size:14.5px}
 .holdbox .meta{color:#8a5a0b;font-size:12.5px;margin-top:2px}
 .btn.hold{background:#fdf0d5;color:#8a5a0b}
+.iundo{flex:none;border:1px solid var(--line,#d9e2e7);background:var(--card);color:var(--muted);border-radius:999px;font-size:12px;font-weight:650;padding:4px 9px;margin-left:6px;cursor:pointer}
 .btn.branch{background:color-mix(in srgb,var(--c-branch) 13%,var(--card));color:var(--c-branch)}
 .tag.msg{background:#e5484d;color:#fff;animation:hfpulse 1.6s ease-in-out 3}
 @keyframes hfpulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,#e5484d 25%,transparent)}}
@@ -365,7 +366,7 @@ function hfDetail(r){
     const mark=it.branch?'<span>🏫</span>':it.no?'<span>❌</span>':it.held?'<span>⏸️</span>':(it.canTick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`);
     const right=rv?`<select class="dec" data-dec="${i}" aria-label="Decision for ${hfEsc(it.n)}"><option value="">Choose…</option>${rv.options.map(o=>`<option value="${hfEsc(o.code)}" ${S.dec.v[i]===o.code?'selected':''}>${hfEsc(o.label)}</option>`).join('')}</select>`
       :(it.branch?'<span class="who brw">branch buys</span>':it.no?'<span class="who">not approved</span>':it.held?'<span class="who heldw">on hold</span>':(it.buyer?`<span class="who">👤 ${it.mine?'You':hfEsc(String(it.buyer).split(' ')[0])}</span>`:''));
-    return `<div class="irow ${it.done?'done':''} ${it.no&&!it.branch?'no':''} ${it.branch?'bri':''} ${it.held?'heldi':''}">${rv?`<span>${it.branch?'🏫':it.no?'❌':it.held?'⏸️':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}${mixedCat&&it.c?`<span class="icat">${hfEsc(it.c)}</span>`:''}</span>${right}</div>`;
+    return `<div class="irow ${it.done?'done':''} ${it.no&&!it.branch?'no':''} ${it.branch?'bri':''} ${it.held?'heldi':''}">${rv?`<span>${it.branch?'🏫':it.no?'❌':it.held?'⏸️':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}${mixedCat&&it.c?`<span class="icat">${hfEsc(it.c)}</span>`:''}</span>${right}${!rv&&it.undo&&!(it.canTick&&it.done)?`<button type="button" class="iundo" data-iundo="${i}" aria-label="Undo ${hfEsc(it.n)}: ${hfEsc(it.undo)}">↩️ Undo</button>`:''}</div>`;
   }).join('')}${rv?`<div class="acts"><button class="btn good" id="savedec" type="button" ${S.busy?'disabled':''}>✔️ ${rv.after?'Save changes':'Save decisions'}</button>${rv.after?'<button class="btn" id="closedec" type="button">Back</button>':''}</div><div class="hint">${S.data.team?'Choose who buys each item, ⏸️ to hold it for now, 🏫 if the branch should buy it, or ❌ if it is not approved.':'Choose ✅, ⏸️ hold, 🏫 branch buys or ❌ for each item.'} The requester is told which items were approved.</div>`:''}${c.tick&&!rv?'<div class="hint">Tick each item when you buy it. When every approved item is ticked, the request is marked purchased.</div>':''}</div>`:'';
   let h=`<div class="det" data-stop="1">${ilist}<dl>
     <dt>Request no.</dt><dd class="ref">${hfEsc(r.ref)}</dd>
@@ -510,6 +511,7 @@ function bindMain(){
   });
   document.querySelectorAll('[data-link]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();try{tg.openLink(a.dataset.link)}catch(_){window.open(a.dataset.link)}}));
   document.querySelectorAll('[data-tick]').forEach(b=>b.onclick=()=>hfRun({action:'act',ref:S.open,what:'tick',text:b.dataset.tick}));
+  document.querySelectorAll('[data-iundo]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=(S.data.requests||[]).find(x=>x.ref===S.open),it=r&&r.items[Number(b.dataset.iundo)];if(!it)return;confirmThen('Undo "'+it.n+'" ('+it.undo+')? '+r.requester+' will be told.',()=>hfRun({action:'act',ref:S.open,what:'itemundo',text:b.dataset.iundo}))});
   document.querySelectorAll('[data-dec]').forEach(el=>{el.addEventListener('click',e=>e.stopPropagation());el.onchange=()=>{if(S.dec)S.dec.v[Number(el.dataset.dec)]=el.value}});
   const sd=document.getElementById('savedec'); if(sd) sd.onclick=()=>{
     if(!S.dec||S.dec.v.some(x=>!x)){hfToast('Please choose for every item.',true);return}

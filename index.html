@@ -6,7 +6,7 @@
 <title>Happy Fish Purchasing</title>
 <script>
 /* Safety net (old-style JavaScript so it runs on any phone): shows what went wrong instead of loading forever. */
-var HF_VERSION='18';
+var HF_VERSION='19';
 var HF_STEP='starting';
 var HF_ERRORS=[];
 window.onerror=function(m,src,line){HF_ERRORS.push(String(m)+(line?' (line '+line+')':''));};
@@ -114,6 +114,8 @@ textarea.i{min-height:76px;resize:vertical}
 .tag.hold{background:#fdf0d5;color:#8a5a0b;border:1px dashed #d9a441}
 .req.held{--sc:var(--c-hold);background:repeating-linear-gradient(135deg,var(--card) 0 14px,color-mix(in srgb,#d9a441 7%,var(--card)) 14px 28px)}
 .req.held .pill{opacity:.65}
+.irow.heldi{background:#fdf6e6}
+.heldw{color:#8a5a0b!important;font-weight:600}
 .holdbox{background:#fdf0d5;color:#5c3d06;border:1px dashed #d9a441;border-radius:12px;padding:10px 12px;font-size:14.5px}
 .holdbox .meta{color:#8a5a0b;font-size:12.5px;margin-top:2px}
 .btn.hold{background:#fdf0d5;color:#8a5a0b}
@@ -250,8 +252,8 @@ function render_(){
   if(tabs.indexOf(S.tab)<0) S.tab = P ? 'tobuy' : 'new';
   let nav;
   if(P){
-    const buyCount = rsAll.filter(r=>!r.hold&&(r.can.approve||r.can.purchased||(d.me.lead&&r.status==='approved'&&!r.assignee))).length;
-    const heldCount = rsAll.filter(r=>r.hold).length;
+    const buyCount = rsAll.filter(r=>!r.hold&&!r.heldOnly&&(r.can.approve||r.can.purchased||(d.me.lead&&r.status==='approved'&&!r.assignee))).length;
+    const heldCount = rsAll.filter(r=>r.hold||r.heldOnly).length;
     nav = `<nav class="tabs" role="tablist">
     <button type="button" role="tab" data-tab="tobuy" class="${S.tab==='tobuy'?'on':''}"><span class="ti">🛒</span>To buy${buyCount?`<span class="badge">${buyCount}</span>`:''}</button>
     <button type="button" role="tab" data-tab="held" class="${S.tab==='held'?'on':''}"><span class="ti">⏸️</span>On hold${heldCount?`<span class="badge hb">${heldCount}</span>`:''}</button>
@@ -343,9 +345,9 @@ function reqCard(r){
   const open=S.open===r.ref;
   const st=(STATUS[r.status]||['closed'])[0], live=OPEN.includes(r.status);
   const late=live&&r.status!=='purchased'&&r.need&&r.need<hfToday();
-  let h=`<div class="req s-${st} ${r.urgent&&live?'urgent':''} ${open?'open':''} ${r.unread?'hasmsg':''} ${r.hold?'held':''}" data-ref="${hfEsc(r.ref)}">
-    <div class="top"><div class="it">${r.items.length>1?`🧺 ${r.items.length} items${r.status==='approved'&&r.items.some(x=>x.done)?` <span class="meta">· ${r.items.filter(x=>x.done&&!x.no).length} of ${r.items.filter(x=>!x.no).length} bought</span>`:''}<div class="meta" style="font-weight:400">${hfEsc(r.items.map(x=>x.n).join(', ').slice(0,90))}</div>`:`${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}`}</div>${hfPill(r)}</div>
-    <div class="tags">${r.hold?`<span class="tag hold">⏸️ On hold${r.hold.reason?': '+hfEsc(r.hold.reason.slice(0,40)):''}</span>`:''}${r.unread?`<span class="tag msg">💬 ${r.unread} new message${r.unread>1?'s':''}</span>`:''}${r.urgent&&live?'<span class="tag urg">🔥 Urgent</span>':''}${r.forName?`<span class="tag for">👑 For ${hfEsc(r.forName)}</span>`:''}<span class="tag">📍 ${hfEsc(r.branch)}</span>${r.mine?'':`<span class="tag">🙂 ${hfEsc(r.requester)}</span>`}${r.needText?`<span class="tag ${late?'late':''}">📅 ${late?'Late · ':''}${hfEsc(r.needText)}</span>`:''}${S.data.team&&S.data.me.purchaser&&live?(r.assignee?`<span class="tag buyer ${r.assignedToMe?'me':''}">🛍️ ${hfWho(r)}</span>`:'<span class="tag buyer none">🛍️ Not assigned</span>'):''}</div>`;
+  let h=`<div class="req s-${st} ${r.urgent&&live?'urgent':''} ${open?'open':''} ${r.unread?'hasmsg':''} ${r.hold||r.heldOnly?'held':''}" data-ref="${hfEsc(r.ref)}">
+    <div class="top"><div class="it">${r.items.length>1?`🧺 ${r.items.length} items${r.status==='approved'&&r.items.some(x=>x.done)?` <span class="meta">· ${r.items.filter(x=>x.done&&!x.no&&!x.held).length} of ${r.items.filter(x=>!x.no&&!x.held).length} bought</span>`:''}<div class="meta" style="font-weight:400">${hfEsc(r.items.map(x=>x.n).join(', ').slice(0,90))}</div>`:`${hfEsc(r.item)}${r.qty?` <span class="meta">× ${hfEsc(r.qty)}</span>`:''}`}</div>${hfPill(r)}</div>
+    <div class="tags">${r.hold?`<span class="tag hold">⏸️ On hold${r.hold.reason?': '+hfEsc(r.hold.reason.slice(0,40)):''}</span>`:''}${!r.hold&&r.heldItems?`<span class="tag hold">⏸️ ${r.heldItems} item${r.heldItems>1?'s':''} on hold</span>`:''}${r.unread?`<span class="tag msg">💬 ${r.unread} new message${r.unread>1?'s':''}</span>`:''}${r.urgent&&live?'<span class="tag urg">🔥 Urgent</span>':''}${r.forName?`<span class="tag for">👑 For ${hfEsc(r.forName)}</span>`:''}<span class="tag">📍 ${hfEsc(r.branch)}</span>${r.mine?'':`<span class="tag">🙂 ${hfEsc(r.requester)}</span>`}${r.needText?`<span class="tag ${late?'late':''}">📅 ${late?'Late · ':''}${hfEsc(r.needText)}</span>`:''}${S.data.team&&S.data.me.purchaser&&live?(r.assignee?`<span class="tag buyer ${r.assignedToMe?'me':''}">🛍️ ${hfWho(r)}</span>`:'<span class="tag buyer none">🛍️ Not assigned</span>'):''}</div>`;
   if(open) h+=hfDetail(r);
   return h+'</div>';
 }
@@ -355,11 +357,11 @@ function hfDetail(r){
   if(rv&&(!S.dec||S.dec.ref!==r.ref)) S.dec={ref:r.ref,v:rv.current.slice()};
   const mixedCat=new Set(r.items.map(x=>x.c).filter(Boolean)).size>1;
   const ilist=r.items.length>1?`<div class="ilist">${r.items.map((it,i)=>{
-    const mark=it.no?'<span>❌</span>':(it.canTick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`);
+    const mark=it.no?'<span>❌</span>':it.held?'<span>⏸️</span>':(it.canTick?`<button type="button" class="tick ${it.done?'on':''}" data-tick="${i}" aria-label="${it.done?'Untick':'Tick'} ${hfEsc(it.n)}">${it.done?'✓':''}</button>`:`<span>${it.done?'✅':'▫️'}</span>`);
     const right=rv?`<select class="dec" data-dec="${i}" aria-label="Decision for ${hfEsc(it.n)}"><option value="">Choose…</option>${rv.options.map(o=>`<option value="${hfEsc(o.code)}" ${S.dec.v[i]===o.code?'selected':''}>${hfEsc(o.label)}</option>`).join('')}</select>`
-      :(it.no?'<span class="who">not approved</span>':(it.buyer?`<span class="who">👤 ${it.mine?'You':hfEsc(String(it.buyer).split(' ')[0])}</span>`:''));
-    return `<div class="irow ${it.done?'done':''} ${it.no?'no':''}">${rv?`<span>${it.no?'❌':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}${mixedCat&&it.c?`<span class="icat">${hfEsc(it.c)}</span>`:''}</span>${right}</div>`;
-  }).join('')}${rv?`<div class="acts"><button class="btn good" id="savedec" type="button" ${S.busy?'disabled':''}>✔️ ${rv.after?'Save changes':'Save decisions'}</button>${rv.after?'<button class="btn" id="closedec" type="button">Back</button>':''}</div><div class="hint">${S.data.team?'Choose who buys each item, or ❌ if it is not approved.':'Choose ✅ or ❌ for each item.'} The requester is told which items were approved.</div>`:''}${c.tick&&!rv?'<div class="hint">Tick each item when you buy it. When every approved item is ticked, the request is marked purchased.</div>':''}</div>`:'';
+      :(it.no?'<span class="who">not approved</span>':it.held?'<span class="who heldw">on hold</span>':(it.buyer?`<span class="who">👤 ${it.mine?'You':hfEsc(String(it.buyer).split(' ')[0])}</span>`:''));
+    return `<div class="irow ${it.done?'done':''} ${it.no?'no':''} ${it.held?'heldi':''}">${rv?`<span>${it.no?'❌':it.held?'⏸️':'▫️'}</span>`:mark}<span class="iname">${hfEsc(it.n)}${it.q?` <span class="meta">× ${hfEsc(it.q)}</span>`:''}${mixedCat&&it.c?`<span class="icat">${hfEsc(it.c)}</span>`:''}</span>${right}</div>`;
+  }).join('')}${rv?`<div class="acts"><button class="btn good" id="savedec" type="button" ${S.busy?'disabled':''}>✔️ ${rv.after?'Save changes':'Save decisions'}</button>${rv.after?'<button class="btn" id="closedec" type="button">Back</button>':''}</div><div class="hint">${S.data.team?'Choose who buys each item, ⏸️ to hold it for now, or ❌ if it is not approved.':'Choose ✅, ⏸️ hold or ❌ for each item.'} The requester is told which items were approved.</div>`:''}${c.tick&&!rv?'<div class="hint">Tick each item when you buy it. When every approved item is ticked, the request is marked purchased.</div>':''}</div>`:'';
   let h=`<div class="det" data-stop="1">${ilist}<dl>
     <dt>Request no.</dt><dd class="ref">${hfEsc(r.ref)}</dd>
     <dt>Category</dt><dd>${hfEsc(r.category)}</dd>
@@ -390,7 +392,7 @@ function hfDetail(r){
     (c.give||[]).forEach(p=>b.push(`<button class="btn" data-act="give" data-target="${hfEsc(p.id)}" type="button">${p.back?'↩️ Hand back to ':'👉 Give to '}${hfEsc(String(p.name).split(' ')[0])}</button>`));
     if(c.reject) b.push(`<button class="btn bad" data-act="reject" data-panel="1" type="button">❌ Not approved</button>`);
     if(c.purchased) b.push(`<button class="btn good" data-act="purchased" type="button">🛒 ${r.items.length>1?((r.assignees||[]).length>1?'All my items bought':'All bought'):'Mark purchased'}</button>`);
-    if(r.review&&r.review.after&&S.reviewOn!==r.ref) b.push(`<button class="btn" id="opendec" type="button">👥 Change who buys each item</button>`);
+    if(r.review&&r.review.after&&S.reviewOn!==r.ref) b.push(`<button class="btn" id="opendec" type="button">${r.heldItems?'⏸️ Change held items / who buys':'📝 Change items: who buys, hold, not approved'}</button>`);
     if(c.received) b.push(`<button class="btn good" data-act="received" type="button">📦 Received</button>`);
     if(c.note) b.push(`<button class="btn" data-act="note" data-panel="1" type="button">📝 Add note</button>`);
     if(c.message) b.push(`<button class="btn" data-act="message" data-panel="1" type="button">💬 ${r.mine&&!S.data.me.purchaser?'Message purchaser':'Message '+hfEsc(String(r.requester).split(' ')[0])}</button>`);
@@ -418,11 +420,11 @@ function mineView(){
 /** Which tab a request lives in, so tapping a new-message alert jumps to the right place. */
 function hfTabOf(r){
   if(!S.data.me.purchaser) return r.mine?'mine':'todo';
-  if(r.hold) return 'held';
+  if(r.hold||r.heldOnly) return 'held';
   return OPEN.includes(r.status)?'tobuy':'bought';
 }
 function buyView(){
-  const d=S.data, me=d.me, rs=(d.requests||[]).filter(r=>!r.hold&&OPEN.includes(r.status));
+  const d=S.data, me=d.me, rs=(d.requests||[]).filter(r=>!r.hold&&!r.heldOnly&&OPEN.includes(r.status));
   const lead=!d.team||me.lead;
   let h='';
   if(lead) h+=hfSection('🆕 Waiting for your approval',rs.filter(r=>r.status==='new').sort(byPrio));
@@ -437,7 +439,7 @@ function buyView(){
   return (h||`<div class="empty">🎉 Nothing to buy right now.</div>`)+refreshBtn();
 }
 function heldView(){
-  const rs=(S.data.requests||[]).filter(r=>r.hold).sort(byPrio);
+  const rs=(S.data.requests||[]).filter(r=>r.hold||r.heldOnly).sort(byPrio);
   return (rs.length?hfSection('⏸️ On hold',rs,'--c-hold'):`<div class="empty">Nothing is on hold.<br><span class="hint">Open a task in <b>🛒 To buy</b> and tap <b>⏸️ Put on hold</b> to park it here.</span></div>`)+refreshBtn();
 }
 function boughtView(){
